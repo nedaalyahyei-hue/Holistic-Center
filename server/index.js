@@ -36,6 +36,10 @@ const UserSchema = new mongoose.Schema({
     default: "customer",
   },
 
+  image: String,
+  description: String,
+  location: String,
+
   resetCode: String,
   resetCodeExpiry: Date,
 });
@@ -229,6 +233,42 @@ app.post("/reset-password", async (req, res) => {
   }
 });
 
+// ================= Center Profile =================
+
+// Get center data (without password)
+app.get("/center/:id", async (req, res) => {
+  try {
+    const center = await UserModel.findOne({
+      _id: req.params.id,
+      role: "center",
+    }).select("-password -resetCode -resetCodeExpiry");
+
+    if (!center) return res.send({ message: "Center not found" });
+
+    res.send({ message: "success", center });
+  } catch (error) {
+    res.send({ message: "Get Center Error: " + error.message });
+  }
+});
+
+// Update center data (phone, image, description, location)
+app.put("/center/:id", async (req, res) => {
+  try {
+    const { phone, image, description, location } = req.body;
+
+    const center = await UserModel.findOneAndUpdate(
+      { _id: req.params.id, role: "center" },
+      { phone, image, description, location },
+      { new: true }
+    ).select("-password -resetCode -resetCodeExpiry");
+
+    if (!center) return res.send({ message: "Center not found" });
+
+    res.send({ message: "success", center });
+  } catch (error) {
+    res.send({ message: "Update Center Error: " + error.message });
+  }
+});
 
 app.listen(3002, () => {
   console.log("Server Connected...");

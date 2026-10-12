@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Center.css";
 import {
-  MdLanguage, MdAccountCircle, MdHome, MdPhone, MdCloudUpload,
+  MdLanguage, MdAccountCircle, MdHome, MdPhone,
   MdDashboard, MdSettings, MdHistory, MdAddCircle,
-  MdEdit, MdEventAvailable, MdLocalOffer, MdPerson
+  MdEdit, MdEventAvailable, MdPerson
 } from "react-icons/md";
 import { FaMoon, FaSun, FaBars } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
@@ -21,17 +21,69 @@ export default function CenterProfile() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [phone, setPhone] = useState("98765432");
-  const [profileImage, setProfileImage] = useState(null);
 
-  const handleImageChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setProfileImage(URL.createObjectURL(e.target.files[0]));
-    }
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const [center, setCenter] = useState({
+    username: "",
+    email: "",
+    phone: "",
+    image: "",
+    description: "",
+    location: "",
+  });
+
+  useEffect(() => {
+    if (!user) return navigate("/login");
+
+    const loadCenter = async () => {
+      try {
+        const res = await fetch(`http://localhost:3002/center/${user._id}`);
+        const result = await res.json();
+        if (result.message === "success") {
+          setCenter({
+            username: result.center.username || "",
+            email: result.center.email || "",
+            phone: result.center.phone || "",
+            image: result.center.image || "",
+            description: result.center.description || "",
+            location: result.center.location || "",
+          });
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    loadCenter();
+  }, []);
+
+  const handleChange = (e) => {
+    setCenter({ ...center, [e.target.name]: e.target.value });
   };
 
-  const handleSave = () => {
-    alert("Changes saved successfully!");
+  const handleSave = async () => {
+    try {
+      const res = await fetch(`http://localhost:3002/center/${user._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: center.phone,
+          image: center.image,
+          description: center.description,
+          location: center.location,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.message === "success") {
+        alert("Changes saved successfully!");
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      alert("Server Error");
+    }
   };
 
   return (
@@ -76,20 +128,13 @@ export default function CenterProfile() {
           </div>
 
           <div className="content-wrapper">
-            <div className="profile-image-container" style={{ position: 'relative', marginBottom: '20px' }}>
+            <div className="profile-image-container" style={{ marginBottom: '20px' }}>
               <img
-                src={profileImage || logoImg}
+                src={center.image || logoImg}
                 alt="Center Profile"
                 className="profile-logo"
                 style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #76a37b' }}
               />
-              <label htmlFor="upload-photo" className="upload-icon-label" style={{
-                position: 'absolute', bottom: '5px', right: '5px', background: '#76a37b',
-                color: 'white', borderRadius: '50%', padding: '8px', cursor: 'pointer', display: 'flex'
-              }}>
-                <MdCloudUpload size={20} />
-                <input type="file" id="upload-photo" hidden onChange={handleImageChange} accept="image/*" />
-              </label>
             </div>
 
             <h2 className="title">Center Profile</h2>
@@ -97,22 +142,43 @@ export default function CenterProfile() {
             <form className="form-box" onSubmit={(e) => e.preventDefault()}>
               <div className="form-group">
                 <label className="card-label">Center Name</label>
-                <input type="text" className="styled-input" value="HCS Medical Center" readOnly
+                <input type="text" className="styled-input" value={center.username} readOnly
                   style={{ background: '#f5f5f5', cursor: 'not-allowed' }} />
               </div>
+
               <div className="form-group">
                 <label className="card-label">Email Address</label>
-                <input type="email" className="styled-input" value="center@hcs.com" readOnly
+                <input type="email" className="styled-input" value={center.email} readOnly
                   style={{ background: '#f5f5f5', cursor: 'not-allowed' }} />
               </div>
+
               <div className="form-group">
                 <label className="card-label">Phone Number</label>
                 <div style={{ position: 'relative' }}>
-                  <input type="text" className="styled-input" value={phone}
-                    onChange={(e) => setPhone(e.target.value)} placeholder="Enter Phone Number" />
+                  <input type="text" name="phone" className="styled-input" value={center.phone}
+                    onChange={handleChange} placeholder="Enter Phone Number" />
                   <MdPhone style={{ position: 'absolute', right: '15px', top: '12px', color: '#76a37b' }} />
                 </div>
               </div>
+
+              <div className="form-group">
+                <label className="card-label">Image Link</label>
+                <input type="text" name="image" className="styled-input" value={center.image}
+                  onChange={handleChange} placeholder="https://..." />
+              </div>
+
+              <div className="form-group">
+                <label className="card-label">Location</label>
+                <input type="text" name="location" className="styled-input" value={center.location}
+                  onChange={handleChange} placeholder="Muscat, Al Seeb" />
+              </div>
+
+              <div className="form-group">
+                <label className="card-label">Description</label>
+                <textarea name="description" className="styled-input" rows="3" value={center.description}
+                  onChange={handleChange} placeholder="About your center..."></textarea>
+              </div>
+
               <div className="form-actions" style={{ marginTop: '20px' }}>
                 <button type="button" className="save-btn" style={{ width: '100%' }} onClick={handleSave}>
                   Save Changes
