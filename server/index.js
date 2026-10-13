@@ -6,7 +6,6 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import dns from "dns";
-import jwt from "jsonwebtoken";
 
 dotenv.config();
 
@@ -16,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 //added to make database work
-//dns.setServers(["8.8.8.8", "8.8.4.4"]);
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const conStr =
   "mongodb+srv://admin:admin123@hct-cluster.czj4w6k.mongodb.net/HCSDB?retryWrites=true&w=majority&appName=HCT-Cluster";
@@ -30,10 +29,6 @@ const UserSchema = new mongoose.Schema({
   username: String,
   email: String,
   phone: String,
-  centerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "CENTER"
-  },
   password: String,
 
   role: {
@@ -41,12 +36,15 @@ const UserSchema = new mongoose.Schema({
     default: "customer",
   },
 
-  resetToken: String,
-  resetTokenExpiry: Date,
+  image: String,
+  description: String,
+  location: String,
+
+  resetCode: String,
+  resetCodeExpiry: Date,
 });
 
 const UserModel = mongoose.model("USER", UserSchema, "USER");
-
 const CenterSchema = new mongoose.Schema({
   centerName: String,
   image: String,
@@ -85,159 +83,42 @@ app.post("/register", async (req, res) => {
 });
 
 
-// Register Center API - Admin Only
-const verifyAdmin = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ message: "Access denied" });
-  }
-
+// Register Center API
+app.post("/register-center", async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { username, email, phone, password } = req.body;
 
-    if (decoded.role !== "admin") {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    const user = await UserModel.findOne({ email });
 
-    UserModel.findById(decoded.id)
-      .then((admin) => {
-        if (!admin || admin.role !== "admin") {
-          return res.status(403).json({
-            message: "Admin only",
-          });
-        }
-
-        req.adminId = admin._id;
-        next();
-      })
-      .catch(() => {
-        return res.status(500).json({
-          message: "Authorization error",
-        });
-      });
-
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token" });
-  }
-};
-
-// Register New Center API
-app.post("/register-center", verifyAdmin, async (req, res) => {
-  try {
-    const { name, email, phone, password } = req.body;
-
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({
-        message: "Please fill in all fields",
-      });
-    }
-
-    if (!email.endsWith(".om")) {
-      return res.status(400).json({
-        message: "Email must end with .om",
-      });
-    }
-
-    const existingUser = await UserModel.findOne({ email });
-
-    if (existingUser) {
-      return res.status(409).json({
-        message: "Email already exists",
-      });
+    if (user) {
+      return res.send({ message: "Center Exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newCenterUser = new UserModel({
-      username: name,
+    const newCenter = new UserModel({
+      username,
       email,
       phone,
       password: hashedPassword,
       role: "center",
     });
 
-    const newCenter = new CenterModel({
-      centerName: name,
-      image: "",
-      isActive: "true",
-      location: "",
-    });
-
     await newCenter.save();
-    newCenterUser.centerId = newCenter._id;
 
-    try {
-      await newCenterUser.save();
-    } catch (error) {
-      await CenterModel.findByIdAndDelete(newCenter._id);
-      throw error;
-    }
-
-    return res.status(201).json({
-      message: "Center account registered successfully",
-    });
+    res.send({ message: "Center Registered" });
   } catch (error) {
-    console.error("Register Center Error:", error);
-    return res.status(500).json({
-      message: "Center registration failed",
-    });
+    res.send({ message: "Center Register Error: " + error.message });
   }
 });
-
-
- // Remove Center API - Admin Only
-app.delete("/remove-center", verifyAdmin, async (req, res) => {
-  try {
-    const { centerName } = req.body;
-
-    if (!centerName || !centerName.trim()) {
-      return res.status(400).json({
-        message: "Please enter center name",
-      });
-    }
-
-    const center = await CenterModel.findOne({
-      centerName: centerName.trim(),
-    });
-
-    if (!center) {
-      return res.status(404).json({
-        message: "Center not found",
-      });
-    }
-
-    await UserModel.deleteMany({
-      centerId: center._id,
-      role: "center",
-    });
-
-    await CenterModel.findByIdAndDelete(center._id);
-
-    return res.status(200).json({
-      message: "Center removed successfully",
-    });
-  } catch (error) {
-    console.error("Remove Center Error:", error);
-    return res.status(500).json({
-      message: "Failed to remove center",
-    });
-  }
-});
-
 
 
 // Login API
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log("LOGIN EMAIL:", email);
 
     const user = await UserModel.findOne({ email });
-    console.log("FOUND USER:", user);
-    console.log("DATABASE:", mongoose.connection.name);
-    console.log("USERS COUNT:", await UserModel.countDocuments());
 
     // user login
     if (!user) {
@@ -257,22 +138,9 @@ app.post("/login", async (req, res) => {
         });
       }
 
-      const token = jwt.sign(
-        {
-          id: user._id,
-          role: user.role,
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: "2h" }
-      );
-
-      const safeUser = user.toObject();
-      delete safeUser.password;
-
       return res.send({
         message: "success",
-        user: safeUser,
-        token: token,
+        user: user,
       });
     }
 
@@ -285,12 +153,9 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    const safeUser = user.toObject();
-    delete safeUser.password;
-
     res.send({
       message: "success",
-      user: safeUser,
+      user: user,
     });
 
   } catch (error) {
@@ -302,7 +167,6 @@ app.post("/login", async (req, res) => {
 
 // Forgot Password API
 app.post("/forgot-password", async (req, res) => {
-  console.log("Forgot password request received:", req.body);
   try {
     const { email } = req.body;
 
@@ -312,13 +176,13 @@ app.post("/forgot-password", async (req, res) => {
       return res.send({ message: "Email not found" });
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
+    // generate 6 digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    user.resetToken = token;
-    user.resetTokenExpiry = Date.now() + 15 * 60 * 1000;
+    user.resetCode = code;
+    user.resetCodeExpiry = Date.now() + 15 * 60 * 1000;
+
     await user.save();
-
-    const resetLink = `${process.env.CLIENT_URL}/reset-password/${token}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -331,72 +195,129 @@ app.post("/forgot-password", async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Reset Your Password",
+      subject: "Password Reset Code",
       html: `
-        <h3>Reset Password</h3>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetLink}">Reset Password</a>
-        <p>This link will expire in 15 minutes.</p>
+        <h2>Password Reset</h2>
+        <p>Your verification code is:</p>
+        <h1>${code}</h1>
+        <p>This code expires in 15 minutes.</p>
       `,
     });
 
-    res.send({ message: "Reset link sent successfully" });
+    res.send({ message: "Reset code sent successfully" });
+
   } catch (error) {
     res.send({ message: "Email Error: " + error.message });
   }
 });
 
-// Get Users
-app.get("/getUsers", async (req, res) => {
-  try {
-    const users = await UserModel.find({});
-    res.send(users);
-  } catch (error) {
-    res.send({ message: "Read Error: " + error });
-  }
-});
 
-// Reset Password 
+// Reset Password API
 app.post("/reset-password", async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { email, code, password } = req.body;
 
     const user = await UserModel.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() },
+      email,
+      resetCode: code,
+      resetCodeExpiry: { $gt: Date.now() },
     });
 
     if (!user) {
-      return res.send({ message: "Invalid or expired token" });
+      return res.send({ message: "Invalid or expired code" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     user.password = hashedPassword;
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
+    user.resetCode = undefined;
+    user.resetCodeExpiry = undefined;
 
     await user.save();
 
     res.send({ message: "Password updated successfully" });
-
   } catch (error) {
     res.send({ message: "Reset Error: " + error.message });
   }
 });
 
-// Get All Centers API - Admin Only
-app.get("/admin/centers", verifyAdmin, async (req, res) => {
-  try {
-    const centers = await CenterModel.find({})
-      .select("_id centerName image isActive location");
+// ================= Center Profile =================
 
-    return res.status(200).json(centers);
+// Get center data (without password)
+app.get("/center/:id", async (req, res) => {
+  try {
+    const center = await UserModel.findOne({
+      _id: req.params.id,
+      role: "center",
+    }).select("-password -resetCode -resetCodeExpiry");
+
+    if (!center) return res.send({ message: "Center not found" });
+
+    res.send({ message: "success", center });
+  } catch (error) {
+    res.send({ message: "Get Center Error: " + error.message });
+  }
+});
+
+// Update center data (phone, image, description, location)
+app.put("/center/:id", async (req, res) => {
+  try {
+    const { phone, image, description, location } = req.body;
+
+    const center = await UserModel.findOneAndUpdate(
+      { _id: req.params.id, role: "center" },
+      { phone, image, description, location },
+      { new: true }
+    ).select("-password -resetCode -resetCodeExpiry");
+
+    if (!center) return res.send({ message: "Center not found" });
+
+    res.send({ message: "success", center });
+  } catch (error) {
+    res.send({ message: "Update Center Error: " + error.message });
+  }
+});
+
+// Get all centers from MongoDB
+app.get("/admin/centers", async (req, res) => {
+  try {
+    const centers = await CenterModel.find({});
+    res.status(200).json(centers);
   } catch (error) {
     console.error("Get Centers Error:", error);
-
-    return res.status(500).json({
+    res.status(500).json({
       message: "Failed to fetch centers",
+    });
+  }
+});
+
+// Get total customers
+app.get("/admin/customers/count", async (req, res) => {
+  try {
+    const totalCustomers = await UserModel.countDocuments({
+      role: "customer",
+    });
+
+    res.status(200).json({ totalCustomers });
+  } catch (error) {
+    console.error("Get Customers Count Error:", error);
+    res.status(500).json({
+      message: "Failed to fetch customers count",
+    });
+  }
+});
+
+// Get customers from MongoDB
+app.get("/admin/customers", async (req, res) => {
+  try {
+    const customers = await UserModel.find({ role: "customer" })
+      .select("username email");
+
+    res.status(200).json(customers);
+  } catch (error) {
+    console.error("Get Customers Error:", error);
+    res.status(500).json({
+      message: "Failed to fetch customers",
     });
   }
 });
