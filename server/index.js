@@ -322,6 +322,81 @@ app.get("/admin/customers", async (req, res) => {
   }
 });
 
+// ================= Treatment =================
+const TreatmentSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    duration: { type: Number, required: true },
+    location: String,
+    category: String,
+    image: String,
+    description: String,
+    centerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const TreatmentModel = mongoose.model("TREATMENT", TreatmentSchema, "TREATMENT");
+
+app.post("/treatments", async (req, res) => {
+  try {
+    const treatment = new TreatmentModel(req.body);
+    await treatment.save();
+    res.send({ message: "success", treatment });
+  } catch (error) {
+    res.send({ message: "Add Treatment Error: " + error.message });
+  }
+});
+
+app.get("/treatments/center/:centerId", async (req, res) => {
+  try {
+    const treatments = await TreatmentModel.find({
+      centerId: req.params.centerId,
+    }).sort({ createdAt: -1 });
+    res.send({ message: "success", treatments });
+  } catch (error) {
+    res.send({ message: "Get Treatments Error: " + error.message });
+  }
+});
+
+app.get("/treatments/:id", async (req, res) => {
+  try {
+    const treatment = await TreatmentModel.findById(req.params.id);
+    if (!treatment) return res.send({ message: "Treatment not found" });
+    res.send({ message: "success", treatment });
+  } catch (error) {
+    res.send({ message: "Get Treatment Error: " + error.message });
+  }
+});
+
+app.put("/treatments/:id", async (req, res) => {
+  try {
+    const treatment = await TreatmentModel.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!treatment) return res.send({ message: "Treatment not found" });
+    res.send({ message: "success", treatment });
+  } catch (error) {
+    res.send({ message: "Update Treatment Error: " + error.message });
+  }
+});
+
+app.delete("/treatments/:id", async (req, res) => {
+  try {
+    await TreatmentModel.findByIdAndDelete(req.params.id);
+    res.send({ message: "success" });
+  } catch (error) {
+    res.send({ message: "Delete Treatment Error: " + error.message });
+  }
+});
+
 app.listen(3002, () => {
   console.log("Server Connected...");
 });
