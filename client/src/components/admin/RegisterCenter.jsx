@@ -40,7 +40,7 @@ export default function RegisterCenter() {
     }
 
     const newCenter = {
-      name,
+      username: name,
       email,
       phone,
       password,

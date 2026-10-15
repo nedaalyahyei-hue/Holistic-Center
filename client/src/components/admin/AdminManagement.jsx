@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Admin.css";
 import { FaMoon, FaSun, FaBars, FaTrashAlt } from "react-icons/fa";
 import { MdLanguage } from "react-icons/md";
@@ -11,7 +11,72 @@ export default function AdminManagement() {
   const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [centerName, setCenterName] = useState("");
+  const [centers, setCenters] = useState([]);
+  const [editingCenterId, setEditingCenterId] = useState(null);
+  const [newCenterName, setNewCenterName] = useState("");
 
+  useEffect(() => {
+    const fetchCenters = async () => {
+      try {
+        const response = await fetch("http://localhost:3002/admin/centers");
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch centers");
+        }
+
+        const data = await response.json();
+        setCenters(data);
+      } catch (error) {
+        console.error("Error fetching centers:", error);
+      }
+    };
+
+    fetchCenters();
+  }, []);
+
+  const handleSaveCenter = async () => {
+    if (!newCenterName.trim()) {
+      alert("Please enter center name");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:3002/admin/centers/${editingCenterId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            centerName: newCenterName.trim(),
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.message || "Update failed");
+        return;
+      }
+
+      setCenters((prev) =>
+        prev.map((center) =>
+          center._id === editingCenterId
+            ? result.center
+            : center
+        )
+      );
+
+      setEditingCenterId(null);
+      setNewCenterName("");
+
+      alert("Center name updated successfully!");
+    } catch (error) {
+      alert("Cannot connect to server");
+    }
+  };
 
   const handleRemoveCenter = async () => {
     if (!centerName.trim()) {
@@ -102,12 +167,6 @@ export default function AdminManagement() {
 
               {showAdminMenu && (
                 <div style={{ paddingLeft: "25px" }}>
-                  <div
-                    className="sidebar-item"
-                    onClick={() => navigate("/admin/management")}
-                  >
-                    Remove Center
-                  </div>
 
                   <div
                     className="sidebar-item"
@@ -133,21 +192,96 @@ export default function AdminManagement() {
           <div className="content-wrapper">
             <img src="/logo.png" alt="logo" className="logo" />
             <h2 className="title">Admin Management</h2>
-            <div className="management-card">
-              <input
-                type="text"
-                placeholder="Enter Center Name"
-                className="input"
-                value={centerName}
-                onChange={(e) => setCenterName(e.target.value)}
-              />
-              <button
-                className="remove-btn"
-                onClick={handleRemoveCenter}
-              >
-                <FaTrashAlt style={{ marginRight: '8px' }} />
-                Remove Center
-              </button>
+            <div
+              className="management-card"
+              style={{
+                width: "90%",
+                maxWidth: "900px",
+                padding: "30px",
+                background: "#ffffff",
+                borderRadius: "18px",
+              }}
+            >
+              <h2 style={{ color: "#34483D", marginBottom: "25px" }}>
+                Centers Management
+              </h2>
+
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: "15px", textAlign: "left" }}>
+                      Center Name
+                    </th>
+                    <th style={{ padding: "15px", textAlign: "center" }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {centers.map((center) => (
+                    <tr key={center._id}>
+                      <td style={{ padding: "15px", borderTop: "1px solid #eee" }}>
+                        {editingCenterId === center._id ? (
+                          <input
+                            type="text"
+                            value={newCenterName}
+                            onChange={(e) => setNewCenterName(e.target.value)}
+                            style={{
+                              padding: "10px",
+                              border: "1px solid #79A99D",
+                              borderRadius: "8px",
+                              width: "80%",
+                            }}
+                          />
+                        ) : (
+                          center.centerName
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "15px",
+                          borderTop: "1px solid #eee",
+                          textAlign: "center",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCenterId(center._id);
+                            setNewCenterName(center.centerName);
+                          }}
+                          style={{
+                            background: "#79A99D",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "8px",
+                            padding: "10px 18px",
+                            marginRight: "10px",
+                          }}
+                        >
+                          Update
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            background: "#C75B52",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "8px",
+                            padding: "10px 18px",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

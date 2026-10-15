@@ -7,7 +7,7 @@
   background-position: center;
   background-repeat: no-repeat;
   transition: all 0.3s ease;
-  overflow: hidden; 
+  overflow-y: auto;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -64,6 +64,8 @@
 .layout {
   display: flex;
   flex: 1; 
+    height: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -119,11 +121,13 @@
 
 .content-wrapper {
   flex: 1;
+  min-height: 0;
   padding: 40px 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   box-sizing: border-box;
 }
 
@@ -175,7 +179,12 @@
 }
 
 .card h3 { font-size: 28px; margin: 5px 0; color: #000; }
-.card p { color: #666; font-size: 14px; margin: 0; }
+.card p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+  text-align: center;
+}
 
 
 .logo {
@@ -251,6 +260,12 @@
   border-radius: 12px;
   border-left: 5px solid #76a37b;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.users-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 

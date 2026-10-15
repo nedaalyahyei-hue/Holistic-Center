@@ -42,15 +42,18 @@ const UserSchema = new mongoose.Schema({
 
   resetCode: String,
   resetCodeExpiry: Date,
-});
+}, { timestamps: true });
 
 const UserModel = mongoose.model("USER", UserSchema, "USER");
-const CenterSchema = new mongoose.Schema({
-  centerName: String,
-  image: String,
-  isActive: String,
-  location: String,
-});
+const CenterSchema = new mongoose.Schema(
+  {
+    centerName: String,
+    image: String,
+    isActive: String,
+    location: String,
+  },
+  { timestamps: true }
+);
 
 const CenterModel = mongoose.model("CENTER", CenterSchema, "CENTER");
 
@@ -105,6 +108,12 @@ app.post("/register-center", async (req, res) => {
     });
 
     await newCenter.save();
+    await CenterModel.create({
+      centerName: username,
+      image: "",
+      isActive: "true",
+      location: "",
+    });
 
     res.send({ message: "Center Registered" });
   } catch (error) {
@@ -291,6 +300,40 @@ app.get("/admin/centers", async (req, res) => {
   }
 });
 
+// Update Center Name
+app.put("/admin/centers/:id", async (req, res) => {
+  try {
+    const { centerName } = req.body;
+
+    if (!centerName || !centerName.trim()) {
+      return res.status(400).json({
+        message: "Center name is required",
+      });
+    }
+
+    const updatedCenter = await CenterModel.findByIdAndUpdate(
+      req.params.id,
+      { centerName: centerName.trim() },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedCenter) {
+      return res.status(404).json({
+        message: "Center not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Center updated successfully",
+      center: updatedCenter,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update center",
+    });
+  }
+});
+
 // Get total customers
 app.get("/admin/customers/count", async (req, res) => {
   try {
@@ -394,6 +437,62 @@ app.delete("/treatments/:id", async (req, res) => {
     res.send({ message: "success" });
   } catch (error) {
     res.send({ message: "Delete Treatment Error: " + error.message });
+  }
+});
+
+// Get monthly registered centers
+app.get("/admin/centers/monthly", async (req, res) => {
+  try {
+    const centers = await CenterModel.aggregate([
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: [{ $type: "$createdAt" }, "date"] },
+              { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+              "Unknown Date"
+            ]
+          },
+          total: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json(centers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get monthly registered customers
+app.get("/admin/customers/monthly", async (req, res) => {
+  try {
+    const customers = await UserModel.aggregate([
+      { $match: { role: "customer" } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: [{ $type: "$createdAt" }, "date"] },
+              {
+                $dateToString: {
+                  format: "%Y-%m",
+                  date: "$createdAt"
+                }
+              },
+              "Unknown Date"
+            ]
+          },
+          total: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json(customers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

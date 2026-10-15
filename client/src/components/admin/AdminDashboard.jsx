@@ -4,6 +4,7 @@ import { MdLanguage } from "react-icons/md";
 import { FaUsers, FaPlus, FaMoon, FaSun, FaBars, FaHome } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, } from "recharts";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -14,6 +15,8 @@ export default function AdminDashboard() {
   const [centers, setCenters] = useState([]);
   const [totalCustomers, setTotalCustomers] = useState(0);
   const [usersData, setUsersData] = useState([]);
+  const [monthlyUsers, setMonthlyUsers] = useState([]);
+  const [monthlyCenters, setMonthlyCenters] = useState([]);
 
   useEffect(() => {
     const fetchCenters = async () => {
@@ -92,6 +95,38 @@ export default function AdminDashboard() {
     fetchCustomers();
   }, []);
 
+  useEffect(() => {
+    fetch("http://localhost:3002/admin/centers/monthly")
+      .then((res) => res.json())
+      .then((data) => setMonthlyCenters(data))
+      .catch((error) => console.error(error));
+  }, []);
+
+  useEffect(() => {
+    const fetchMonthlyUsers = async () => {
+      try {
+        const res = await fetch("http://localhost:3002/admin/customers/monthly");
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch monthly users");
+        }
+
+        const data = await res.json();
+
+        setMonthlyUsers(
+          data.map((item) => ({
+            month: item._id,
+            total: item.total,
+          }))
+        );
+      } catch (error) {
+        console.error("Error fetching monthly users:", error);
+      }
+    };
+
+    fetchMonthlyUsers();
+  }, []);
+
   const bookingsData = [
     { id: 1, userEmail: "ahmed.balushi@example.com", date: "15 May 2026", time: "10:00 AM", center: "Abna Freish Center" },
     { id: 2, userEmail: "sara.riyami@example.com", date: "16 May 2026", time: "11:30 AM", center: "Muscat Hijama Center" },
@@ -147,7 +182,7 @@ export default function AdminDashboard() {
                 onClick={() => setActiveCard(activeCard === "centers" ? "" : "centers")}
               >
                 <FaHome className="card-icon" />
-                <p>Total Centers</p>
+                <p>Total Registered Centers</p>
                 <h3>{centers.length}</h3>
               </div>
 
@@ -156,7 +191,7 @@ export default function AdminDashboard() {
                 onClick={() => setActiveCard(activeCard === "users" ? "" : "users")}
               >
                 <FaUsers className="card-icon" />
-                <p>Total Users</p>
+                <p>Total Registered Users</p>
                 <h3>{totalCustomers}</h3>
               </div>
 
@@ -165,7 +200,7 @@ export default function AdminDashboard() {
                 onClick={() => setActiveCard(activeCard === "bookings" ? "" : "bookings")}
               >
                 <FaPlus className="card-icon" />
-                <p>Total Booking</p>
+                <p>Total Booking Per Center</p>
                 <h3>{bookingsData.length}</h3>
               </div>
             </div>
@@ -207,31 +242,118 @@ export default function AdminDashboard() {
             )}
 
             {activeCard === "users" && (
-              <div className="dashboard-record-box">
-                <h2>Users Summary</h2>
-                <div className="records-grid">
-                  {usersData.map((user) => (
-                    <div key={user.id} className="dashboard-record-card">
-                      <p><strong>Name:</strong> {user.name}</p>
-                      <p><strong>Email:</strong> {user.email}</p>
-                    </div>
-                  ))}
+              <div
+                className="dashboard-record-box"
+                style={{
+                  background: "#ffffff",
+                  padding: "30px",
+                  borderRadius: "18px",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                }}
+              >
+                <h2
+                  style={{
+                    color: "#34483D",
+                    fontSize: "22px",
+                    marginBottom: "25px",
+                    textAlign: "center",
+                  }}
+                >
+                  Monthly Registered Users
+                </h2>
+
+                <div style={{ width: "100%", height: 320 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={monthlyUsers.filter((item) => item.month !== "Unknown Date")}
+                      margin={{ top: 20, right: 30, left: 0, bottom: 10 }}
+                      barCategoryGap="45%"
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 5"
+                        vertical={false}
+                        stroke="#E8EDE9"
+                      />
+
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fill: "#64756B", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fill: "#64756B", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <Tooltip
+                        cursor={{ fill: "#F3F7F4" }}
+                        contentStyle={{
+                          borderRadius: "12px",
+                          border: "1px solid #E8EDE9",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                        }}
+                      />
+
+                      <Bar
+                        dataKey="total"
+                        name="Registered Users"
+                        fill="#79A99D"
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={65}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             )}
 
             {activeCard === "bookings" && (
-              <div className="dashboard-record-box">
-                <h2>Bookings Summary</h2>
-                <div className="records-grid">
-                  {bookingsData.map((booking, index) => (
-                    <div key={index} className="dashboard-record-card">
-                      <p><strong>User:</strong> {booking.userEmail}</p>
-                      <p><strong>Center:</strong> {booking.center}</p>
-                      <p><strong>Date:</strong> {booking.date} | {booking.time}</p>
-                    </div>
-                  ))}
-                </div>
+              <div
+                className="dashboard-record-box"
+                style={{
+                  background: "#ffffff",
+                  padding: "30px",
+                  borderRadius: "18px",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                }}
+              >
+                <h2 style={{ textAlign: "center", color: "#34483D" }}>
+                  Total Booking Per Center
+                </h2>
+
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "25px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: "15px", textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                        Total Bookings
+                      </th>
+                      <th style={{ padding: "15px", textAlign: "right", borderBottom: "1px solid #ddd" }}>
+                        Center Name
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {[
+                      { name: "Center A", total: 5 },
+                      { name: "Center B", total: 3 },
+                      { name: "Center C", total: 2 },
+                    ].map((center) => (
+                      <tr key={center.name}>
+                        <td style={{ padding: "15px", borderBottom: "1px solid #eee" }}>
+                          {center.total}
+                        </td>
+                        <td style={{ padding: "15px", textAlign: "right", borderBottom: "1px solid #eee" }}>
+                          {center.name}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
