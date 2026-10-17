@@ -78,41 +78,33 @@ export default function AdminManagement() {
     }
   };
 
-  const handleRemoveCenter = async () => {
-    if (!centerName.trim()) {
-      alert("Please enter center name");
-      return;
-    }
-
+  const handleRemoveCenter = async (center) => {
     const confirmDelete = window.confirm(
-      `Are you sure you want to remove ${centerName}?`
+      `Are you sure you want to delete ${center.centerName}?`
     );
 
     if (!confirmDelete) return;
 
     try {
-      const token = localStorage.getItem("token");
-
-      const response = await fetch("http://localhost:3002/remove-center", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          centerName: centerName.trim(),
-        }),
-      });
+      const response = await fetch(
+        `http://localhost:3002/admin/centers/${center._id}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       const result = await response.json();
 
       if (!response.ok) {
-        alert(result.message || "Failed to remove center");
+        alert(result.message || "Failed to delete center");
         return;
       }
 
-      alert("Center removed successfully!");
-      setCenterName("");
+      setCenters((prev) =>
+        prev.filter((item) => item._id !== center._id)
+      );
+
+      alert("Center deleted successfully!");
     } catch (error) {
       alert("Cannot connect to server");
     }
@@ -249,8 +241,12 @@ export default function AdminManagement() {
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingCenterId(center._id);
-                            setNewCenterName(center.centerName);
+                            if (editingCenterId === center._id) {
+                              handleSaveCenter();
+                            } else {
+                              setEditingCenterId(center._id);
+                              setNewCenterName(center.centerName || "");
+                            }
                           }}
                           style={{
                             background: "#79A99D",
@@ -261,12 +257,12 @@ export default function AdminManagement() {
                             marginRight: "10px",
                           }}
                         >
-                          Update
+                          {editingCenterId === center._id ? "Save" : "Update"}
                         </button>
 
                         <button
                           type="button"
-                          disabled
+                          onClick={() => handleRemoveCenter(center)}
                           style={{
                             background: "#C75B52",
                             color: "white",

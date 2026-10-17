@@ -334,6 +334,27 @@ app.put("/admin/centers/:id", async (req, res) => {
   }
 });
 
+// Delete Center
+app.delete("/admin/centers/:id", async (req, res) => {
+  try {
+    const deletedCenter = await CenterModel.findByIdAndDelete(req.params.id);
+
+    if (!deletedCenter) {
+      return res.status(404).json({
+        message: "Center not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Center deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to delete center",
+    });
+  }
+});
+
 // Get total customers
 app.get("/admin/customers/count", async (req, res) => {
   try {
