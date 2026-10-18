@@ -1275,3 +1275,10 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   background: rgba(63, 69, 53, 0.25);
   margin: 28px 0;
 }
+
+\\me
+.calendar-day { cursor: pointer; }
+.calendar-day.selected { background: #2e7d5b; color: white; }
+.calendar-day.disabled { opacity: 0.3; cursor: not-allowed; }
+.booking-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.confirm-card { background: white; padding: 20px; margin: 20px 0; line-height: 2; }

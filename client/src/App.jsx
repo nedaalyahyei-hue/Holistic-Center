@@ -35,6 +35,7 @@ import Review from "./components/customer/Review";
 import UserDashboard from "./components/customer/UserDashboard";
 import Chatbot from "./components/customer/Chatbot";
 import Contact from "./components/customer/Cnotact.jsx";
+import BookingConfirmation from "./components/customer/BookingConfirmation";
 
 function App() {
   return (
@@ -66,6 +67,7 @@ function App() {
         <Route path="/customer/center-details" element={<ViewCenterDetails />} />
         <Route path="/customer/center-details/:centerId" element={<ViewCenterDetails />} />
         <Route path="/customer/appointment-book" element={<AppointmentBook />} />
+        <Route path="/customer/booking-confirmation" element={<BookingConfirmation />} />
         <Route path="/customer/payment" element={<Payment />} />
         <Route path="/customer/history" element={<AppointmentsHistory />} />
         <Route path="/customer/review" element={<Review />} />
