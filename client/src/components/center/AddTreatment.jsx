@@ -5,6 +5,7 @@ import { FaMoon, FaSun, FaBars } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
+import ScheduleEditor from "./ScheduleEditor";
 
 export default function AddTreatment() {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ export default function AddTreatment() {
     description: "",
   });
 
+  const [workDays, setWorkDays] = useState([0, 1, 2, 3, 4, 6]);
+  const [slots, setSlots] = useState([{ start: "09:00", end: "09:45", doctor: "" }]);
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -34,6 +38,11 @@ export default function AddTreatment() {
       return navigate("/login");
     }
 
+    if (workDays.length === 0) {
+      alert("Select at least one working day");
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:3002/treatments", {
         method: "POST",
@@ -43,6 +52,8 @@ export default function AddTreatment() {
           price: Number(form.price),
           duration: Number(form.duration),
           centerId: user._id,
+          workDays,
+          slots,
         }),
       });
       const result = await res.json();
@@ -157,6 +168,13 @@ export default function AddTreatment() {
                   placeholder="Enter description here..."
                   value={form.description} onChange={handleChange}></textarea>
               </div>
+
+              <ScheduleEditor
+                workDays={workDays}
+                setWorkDays={setWorkDays}
+                slots={slots}
+                setSlots={setSlots}
+              />
 
               <div className="form-actions" style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
                 <button type="submit" className="save-btn" style={{ flex: 1 }}>Add</button>

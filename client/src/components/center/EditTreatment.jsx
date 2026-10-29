@@ -5,6 +5,7 @@ import { MdLanguage, MdAccountCircle } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate, useLocation } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
+import ScheduleEditor from "./ScheduleEditor";
 
 export default function EditTretment() {
   const navigate = useNavigate();
@@ -24,7 +25,14 @@ export default function EditTretment() {
     description: oldTreatment?.description || "",
   });
 
-  // إذا دخل الصفحة بدون ما يختار علاج، نرجعه لـ Management
+  const [workDays, setWorkDays] = useState(oldTreatment?.workDays ?? [0, 1, 2, 3, 4, 6]);
+  const [slots, setSlots] = useState(
+    oldTreatment?.slots?.length
+      ? oldTreatment.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }))
+      : [{ start: "09:00", end: "09:45", doctor: "" }]
+  );
+
+  // If the page is opened without choosing a treatment, go back to Management
   useEffect(() => {
     if (!oldTreatment) navigate("/center/management");
   }, []);
@@ -36,6 +44,11 @@ export default function EditTretment() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (workDays.length === 0) {
+      alert("Select at least one working day");
+      return;
+    }
+
     try {
       const res = await fetch(
         `http://localhost:3002/treatments/${oldTreatment._id}`,
@@ -46,6 +59,8 @@ export default function EditTretment() {
             ...treatment,
             price: Number(treatment.price),
             duration: Number(treatment.duration),
+            workDays,
+            slots,
           }),
         }
       );
@@ -165,6 +180,13 @@ export default function EditTretment() {
                 <textarea name="description" className="styled-input" rows="3"
                   value={treatment.description} onChange={handleChange}></textarea>
               </div>
+
+              <ScheduleEditor
+                workDays={workDays}
+                setWorkDays={setWorkDays}
+                slots={slots}
+                setSlots={setSlots}
+              />
 
               <div className="form-actions" style={{ display: "flex", gap: "15px" }}>
                 <button type="submit" className="save-btn" style={{ flex: 1 }}>

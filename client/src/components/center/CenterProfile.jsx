@@ -13,14 +13,17 @@ export default function CenterProfile() {
 
   const user = JSON.parse(localStorage.getItem("user"));
 
+  // Name and email show immediately from the login data
   const [center, setCenter] = useState({
-    username: "",
-    email: "",
-    phone: "",
-    image: "",
-    description: "",
-    location: "",
+    username: user?.username || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    image: user?.image || "",
+    description: user?.description || "",
   });
+
+  // each location: { name, mapUrl }
+  const [locations, setLocations] = useState([{ name: "", mapUrl: "" }]);
 
   useEffect(() => {
     if (!user) {
@@ -33,14 +36,19 @@ export default function CenterProfile() {
         const res = await fetch(`http://localhost:3002/center/${user._id}`);
         const result = await res.json();
         if (result.message === "success") {
+          const c = result.center;
           setCenter({
-            username: result.center.username || "",
-            email: result.center.email || "",
-            phone: result.center.phone || "",
-            image: result.center.image || "",
-            description: result.center.description || "",
-            location: result.center.location || "",
+            username: c.username || "",
+            email: c.email || "",
+            phone: c.phone || "",
+            image: c.image || "",
+            description: c.description || "",
           });
+          setLocations(
+            c.locations && c.locations.length > 0
+              ? c.locations.map((l) => ({ name: l.name, mapUrl: l.mapUrl }))
+              : [{ name: "", mapUrl: "" }]
+          );
         }
       } catch (error) {
         console.log(error);
@@ -54,7 +62,40 @@ export default function CenterProfile() {
     setCenter({ ...center, [e.target.name]: e.target.value });
   };
 
+  const handleLocationChange = (index, field, value) => {
+    setLocations(locations.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+  };
+
+  const addLocation = () => {
+    setLocations([...locations, { name: "", mapUrl: "" }]);
+  };
+
+  const removeLocation = (index) => {
+    if (locations.length === 1) {
+      setLocations([{ name: "", mapUrl: "" }]);
+      return;
+    }
+    setLocations(locations.filter((_, i) => i !== index));
+  };
+
   const handleSave = async () => {
+    // a location must have both name and link
+    const incomplete = locations.some(
+      (l) => (l.name.trim() && !l.mapUrl.trim()) || (!l.name.trim() && l.mapUrl.trim())
+    );
+    if (incomplete) {
+      alert("Each location needs both a name and a map link.");
+      return;
+    }
+
+    const badLink = locations.some(
+      (l) => l.mapUrl.trim() && !/^https?:\/\//i.test(l.mapUrl.trim())
+    );
+    if (badLink) {
+      alert("Map link must start with http:// or https://");
+      return;
+    }
+
     try {
       const res = await fetch(`http://localhost:3002/center/${user._id}`, {
         method: "PUT",
@@ -63,7 +104,7 @@ export default function CenterProfile() {
           phone: center.phone,
           image: center.image,
           description: center.description,
-          location: center.location,
+          locations,
         }),
       });
       const result = await res.json();
@@ -131,14 +172,14 @@ export default function CenterProfile() {
             <form className="form-box" onSubmit={(e) => e.preventDefault()}>
               <div className="form-group">
                 <label className="card-label">Center Name</label>
-                <input type="text" className="styled-input" value={center.username} readOnly
-                  style={{ background: "#f5f5f5", cursor: "not-allowed" }} />
+                <input type="text" className="styled-input" value={center.username} readOnly disabled
+                  style={{ background: "#f5f5f5", cursor: "not-allowed", color: "#555" }} />
               </div>
 
               <div className="form-group">
                 <label className="card-label">Email Address</label>
-                <input type="email" className="styled-input" value={center.email} readOnly
-                  style={{ background: "#f5f5f5", cursor: "not-allowed" }} />
+                <input type="email" className="styled-input" value={center.email} readOnly disabled
+                  style={{ background: "#f5f5f5", cursor: "not-allowed", color: "#555" }} />
               </div>
 
               <div className="form-group">
@@ -154,9 +195,66 @@ export default function CenterProfile() {
               </div>
 
               <div className="form-group">
-                <label className="card-label">Location</label>
-                <input type="text" name="location" className="styled-input" value={center.location}
-                  onChange={handleChange} placeholder="Muscat, Al Seeb" />
+                <label className="card-label">Locations</label>
+
+                {locations.map((loc, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      border: "1px solid #ddd",
+                      borderRadius: "10px",
+                      padding: "12px",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="styled-input"
+                      placeholder="Location name (e.g. Al Seeb Branch)"
+                      value={loc.name}
+                      onChange={(e) => handleLocationChange(index, "name", e.target.value)}
+                      style={{ marginBottom: "8px" }}
+                    />
+                    <input
+                      type="text"
+                      className="styled-input"
+                      placeholder="Map link (https://maps.google.com/...)"
+                      value={loc.mapUrl}
+                      onChange={(e) => handleLocationChange(index, "mapUrl", e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLocation(index)}
+                      style={{
+                        marginTop: "8px",
+                        background: "none",
+                        border: "none",
+                        color: "#c0392b",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addLocation}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "2px dashed #76a37b",
+                    background: "transparent",
+                    color: "#76a37b",
+                    borderRadius: "10px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  + Add Another Location
+                </button>
               </div>
 
               <div className="form-group">
