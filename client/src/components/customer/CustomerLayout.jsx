@@ -89,6 +89,7 @@ export default function CustomerLayout({ children }) {
             <Link to="/customer/dashboard">Dashboard</Link>
             <Link to="/customer/chatbot">Chatbot</Link>
             <Link to="/customer/contact">Contact With Centers</Link>
+            <Link to="/customer/contact-admin">Contact With Admin</Link>
             
 
             <div className="logout-link" onClick={logout}>

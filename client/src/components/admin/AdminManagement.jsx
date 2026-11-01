@@ -4,6 +4,7 @@ import { FaMoon, FaSun, FaBars, FaTrashAlt } from "react-icons/fa";
 import { MdLanguage } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
+import MessageNotification from "./MessageNotification";
 
 export default function AdminManagement() {
   const navigate = useNavigate();
@@ -151,8 +152,12 @@ export default function AdminManagement() {
                 Register Center
               </div>
 
-              <div className="sidebar-item" onClick={() => navigate("/admin/messages")}>
+              <div
+                className="sidebar-item"
+                onClick={() => navigate("/admin/messages")}
+              >
                 Messages
+                <MessageNotification />
               </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>

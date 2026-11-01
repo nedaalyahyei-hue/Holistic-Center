@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Admin.css";
 import { FaMoon, FaSun, FaBars, FaHome, FaEnvelope, FaPaperPlane } from "react-icons/fa";
 import { MdLanguage } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
+import MessageNotification from "./MessageNotification";
 
 export default function AdminMessages() {
   const navigate = useNavigate();
@@ -12,32 +13,78 @@ export default function AdminMessages() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [replyText, setReplyText] = useState("");
 
-  const [chatData, setChatData] = useState({
-    1: {
-      name: "Ahmed Al-Balushi",
-      messages: [{ sender: "user", text: "Hello, I have a question about my appointment." }]
-    },
-    2: {
-      name: "Sara Al-Riyami",
-      messages: [{ sender: "user", text: "Can I change my center?" }]
-    },
-    3: {
-      name: "Mazin Al-Harthy",
-      messages: [{ sender: "user", text: "Payment was successful, thank you." }]
-    }
-  });
+  const [chatData, setChatData] = useState({});
 
-  const handleSend = () => {
-    if (replyText.trim() && selectedUserId) {
-      const newMessage = { sender: "admin", text: replyText };
-      setChatData({
-        ...chatData,
-        [selectedUserId]: {
-          ...chatData[selectedUserId],
-          messages: [...chatData[selectedUserId].messages, newMessage]
+  useEffect(() => {
+    fetch("http://localhost:3002/messages")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.message === "success") {
+          const chats = {};
+
+          data.messages.forEach((msg) => {
+            const id = msg.customerId;
+
+            if (!chats[id]) {
+              chats[id] = {
+                name: msg.customerName || "Customer",
+                messages: [],
+              };
+            }
+
+            chats[id].messages.push({
+              sender: msg.sender,
+              text: msg.text,
+              isRead: msg.isRead ?? true,
+              createdAt: msg.createdAt,
+            });
+          });
+
+          setChatData(chats);
         }
+      })
+      .catch((error) => console.error(error));
+  }, []);
+
+  const handleSend = async () => {
+    if (!replyText.trim() || !selectedUserId) return;
+
+    try {
+      const response = await fetch("http://localhost:3002/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId: selectedUserId,
+          customerName: chatData[selectedUserId].name,
+          sender: "admin",
+          text: replyText.trim(),
+        }),
       });
+
+      const result = await response.json();
+
+      if (!response.ok || result.message !== "success") {
+        alert("Failed to send message");
+        return;
+      }
+
+      setChatData((prev) => ({
+        ...prev,
+        [selectedUserId]: {
+          ...prev[selectedUserId],
+          messages: [
+            ...prev[selectedUserId].messages,
+            { sender: "admin", text: replyText.trim() },
+          ],
+        },
+      }));
+
       setReplyText("");
+    } catch (error) {
+      console.error(error);
+      alert("Cannot connect to server");
     }
   };
 
@@ -88,7 +135,13 @@ export default function AdminMessages() {
                 Admin Management
               </div>
               <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>Register Center</div>
-              <div className="sidebar-item active" onClick={() => navigate("/admin/messages")}>Messages</div>
+              <div
+  className="sidebar-item active"
+  onClick={() => navigate("/admin/messages")}
+>
+  Messages
+  <MessageNotification />
+</div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout
@@ -151,7 +204,30 @@ export default function AdminMessages() {
                   {Object.keys(chatData).map(id => (
                     <div
                       key={id}
-                      onClick={() => setSelectedUserId(id)}
+                      onClick={async () => {
+                        setSelectedUserId(id);
+
+                        try {
+                          const response = await fetch(
+                            `http://localhost:3002/messages/read/${id}`,
+                            { method: "PUT" }
+                          );
+
+                          if (!response.ok) return;
+
+                          setChatData((prev) => ({
+                            ...prev,
+                            [id]: {
+                              ...prev[id],
+                              messages: prev[id].messages.map((m) =>
+                                m.sender === "user" ? { ...m, isRead: true } : m
+                              ),
+                            },
+                          }));
+                        } catch (error) {
+                          console.error(error);
+                        }
+                      }}
                       style={{
                         padding: '10px',
                         borderRadius: '8px',
@@ -161,7 +237,32 @@ export default function AdminMessages() {
                         transition: '0.3s'
                       }}
                     >
-                      <strong>{chatData[id].name}</strong>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <strong>{chatData[id].name}</strong>
+
+                        {chatData[id].messages.filter(
+                          (m) => m.sender === "user" && m.isRead === false
+                        ).length > 0 && (
+                            <span
+                              style={{
+                                background: "#e74c3c",
+                                color: "white",
+                                borderRadius: "50%",
+                                minWidth: "22px",
+                                height: "22px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "12px",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {chatData[id].messages.filter(
+                                (m) => m.sender === "user" && m.isRead === false
+                              ).length}
+                            </span>
+                          )}
+                      </div>
                       <p style={{ fontSize: '12px', margin: '5px 0 0', opacity: 0.8 }}>
                         {chatData[id].messages[chatData[id].messages.length - 1].text.substring(0, 20)}...
                       </p>

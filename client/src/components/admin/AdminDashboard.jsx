@@ -5,6 +5,7 @@ import { FaUsers, FaPlus, FaMoon, FaSun, FaBars, FaHome } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, } from "recharts";
+import MessageNotification from "./MessageNotification";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -175,8 +176,12 @@ export default function AdminDashboard() {
                 Register Center
               </div>
 
-              <div className="sidebar-item" onClick={() => navigate("/admin/messages")}>
+              <div
+                className="sidebar-item"
+                onClick={() => navigate("/admin/messages")}
+              >
                 Messages
+                <MessageNotification />
               </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>

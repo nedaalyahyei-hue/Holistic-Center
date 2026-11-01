@@ -4,6 +4,7 @@ import { FaMoon, FaSun, FaBars, FaPlus, FaHome, FaEnvelope, FaEye, FaEyeSlash } 
 import { MdLanguage, MdDashboard } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
+import MessageNotification from "./MessageNotification";
 
 export default function RegisterCenter() {
   const navigate = useNavigate();
@@ -114,7 +115,13 @@ export default function RegisterCenter() {
               <div className="sidebar-item" onClick={() => navigate("/admin/dashboard")}>Dashboard</div>
               <div className="sidebar-item" onClick={() => navigate("/admin/management")}>Admin Management</div>
               <div className="sidebar-item active">Register Center</div>
-              <div className="sidebar-item" onClick={() => navigate("/admin/messages")}>Messages</div>
+              <div
+                className="sidebar-item"
+                onClick={() => navigate("/admin/messages")}
+              >
+                Messages
+                <MessageNotification />
+              </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout

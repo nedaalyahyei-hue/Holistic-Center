@@ -36,6 +36,7 @@ import UserDashboard from "./components/customer/UserDashboard";
 import Chatbot from "./components/customer/Chatbot";
 import Contact from "./components/customer/Cnotact.jsx";
 import BookingConfirmation from "./components/customer/BookingConfirmation";
+import ContactAdmin from "./components/customer/ContactAdmin";
 
 function App() {
   return (
@@ -74,6 +75,7 @@ function App() {
         <Route path="/customer/dashboard" element={<UserDashboard />} />
         <Route path="/customer/chatbot" element={<Chatbot />} />
         <Route path="/customer/contact" element={<Contact />} />
+        <Route path="/customer/contact-admin" element={<ContactAdmin />} />
 
       </Routes>
     </BrowserRouter>

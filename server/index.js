@@ -117,13 +117,13 @@ app.post("/register-center", async (req, res) => {
 
     await newCenter.save();
     await CenterModel.create({
-  centerName: username,
-  email,
-  phone,
-  image: "",
-  isActive: "true",
-  location: "",
-});
+      centerName: username,
+      email,
+      phone,
+      image: "",
+      isActive: "true",
+      location: "",
+    });
     res.send({ message: "success" });
   } catch (error) {
     res.send({ message: "Center Register Error: " + error.message });
@@ -397,6 +397,88 @@ app.get("/admin/customers", async (req, res) => {
     res.status(500).json({
       message: "Failed to fetch customers",
     });
+  }
+});
+
+// Customer and Admin Messages
+const MessageSchema = new mongoose.Schema(
+  {
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+      required: true,
+    },
+    customerName: String,
+    sender: {
+      type: String,
+      enum: ["user", "admin"],
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { timestamps: true }
+);
+
+const MessageModel = mongoose.model("MESSAGE", MessageSchema, "MESSAGE");
+
+// Send Message
+app.post("/messages", async (req, res) => {
+  try {
+    const { customerId, customerName, sender, text } = req.body;
+
+    if (!customerId || !text?.trim() || !["user", "admin"].includes(sender)) {
+      return res.status(400).send({ message: "Invalid message data" });
+    }
+
+    const message = await MessageModel.create({
+      customerId,
+      customerName,
+      sender,
+      text: text.trim(),
+    });
+
+    res.send({ message: "success", data: message });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+});
+
+// Get All Messages for Admin
+app.get("/messages", async (req, res) => {
+  try {
+    const messages = await MessageModel.find().sort({ createdAt: 1 });
+
+    res.send({
+      message: "success",
+      messages,
+    });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+});
+
+// Mark Customer Messages as Read
+app.put("/messages/read/:customerId", async (req, res) => {
+  try {
+    await MessageModel.updateMany(
+      {
+        customerId: req.params.customerId,
+        sender: "user",
+        isRead: { $ne: true },
+      },
+      { $set: { isRead: true } }
+    );
+
+    res.send({ message: "success" });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
   }
 });
 

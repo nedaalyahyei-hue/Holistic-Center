@@ -1282,3 +1282,82 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 .calendar-day.disabled { opacity: 0.3; cursor: not-allowed; }
 .booking-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .confirm-card { background: white; padding: 20px; margin: 20px 0; line-height: 2; }
+
+
+
+/* Contact With Admin */
+.contact-admin-page {
+  width: 100%;
+  padding: 35px 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.contact-admin-page h1 {
+  color: #34483d;
+  margin-bottom: 25px;
+}
+
+.contact-admin-chat {
+  width: 100%;
+  max-width: 750px;
+  height: 520px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.contact-admin-header {
+  background: #76a37b;
+  color: white;
+  padding: 20px 25px;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.contact-admin-messages {
+  flex: 1;
+  padding: 25px;
+  overflow-y: auto;
+  background: #f8faf8;
+}
+
+.contact-admin-welcome {
+  text-align: center;
+  color: #777;
+  margin-top: 70px;
+}
+
+.contact-admin-input-area {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #eee;
+}
+
+.contact-admin-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.contact-admin-send {
+  background: #76a37b;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.contact-admin-send:hover {
+  background: #5f8b65;
+}
