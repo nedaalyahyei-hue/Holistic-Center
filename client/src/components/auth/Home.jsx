@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Home.css";
 import { Link } from "react-router-dom";
 
@@ -11,6 +11,37 @@ export default function Home() {
   const [lang, setLang] = useState("en");
   const [darkMode, setDarkMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState({
+    centers: [],
+    treatments: []
+  });
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchResults({
+        centers: [],
+        treatments: []
+      });
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3002/search-centers?q=${encodeURIComponent(searchTerm)}`
+        );
+        const data = await res.json();
+        setSearchResults({
+          centers: data.centers || [],
+          treatments: data.treatments || []
+        });
+      } catch (error) {
+        console.error("Search error:", error);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const centers = [
     { id: 1, name: "Abna Freish Center", nameAr: "مركز أبناء فريش", img: AbnaFreish, rating: 3 },
@@ -37,10 +68,23 @@ export default function Home() {
 
   const current = t[lang];
 
-  const filteredCenters = centers.filter((c) =>
-    (lang === "en" ? c.name : c.nameAr).toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCenters = !searchTerm.trim()
+    ? centers
+    : centers.filter((center) => {
+      const matchesName =
+        center.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        center.nameAr.includes(searchTerm);
 
+      const matchesDatabaseCenter = (searchResults.centers || []).some(
+        (c) => c.centerName?.toLowerCase() === center.name.toLowerCase()
+      );
+      const matchesTreatment = (searchResults.treatments || []).some(
+        (t) =>
+          t.centerId?.username?.toLowerCase() === center.name.toLowerCase()
+      );
+
+      return matchesName || matchesDatabaseCenter || matchesTreatment;
+    });
   return (
     <div className={`home-wrapper ${darkMode ? "dark" : ""} ${lang === "ar" ? "rtl" : ""}`}>
 
@@ -91,6 +135,7 @@ export default function Home() {
             <input
               type="text"
               placeholder={current.searchPlaceholder}
+              value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <span className="search-glass">🔍</span>

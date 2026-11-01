@@ -425,6 +425,24 @@ const TreatmentSchema = new mongoose.Schema(
 );
 
 const TreatmentModel = mongoose.model("TREATMENT", TreatmentSchema, "TREATMENT");
+// Search centers by center name or treatment name
+app.get("/search-centers", async (req, res) => {
+  try {
+    const search = (req.query.q || "").trim();
+
+    const centers = await CenterModel.find({
+      centerName: { $regex: search, $options: "i" }
+    });
+
+    const treatments = await TreatmentModel.find({
+      name: { $regex: search, $options: "i" }
+    }).populate("centerId", "username email");
+
+    res.json({ centers, treatments });
+  } catch (error) {
+    res.status(500).json({ message: "Search failed" });
+  }
+});
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
