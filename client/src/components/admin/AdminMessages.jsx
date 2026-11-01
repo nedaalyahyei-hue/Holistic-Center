@@ -136,12 +136,12 @@ export default function AdminMessages() {
               </div>
               <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>Register Center</div>
               <div
-  className="sidebar-item active"
-  onClick={() => navigate("/admin/messages")}
->
-  Messages
-  <MessageNotification />
-</div>
+                className="sidebar-item active"
+                onClick={() => navigate("/admin/messages")}
+              >
+                Messages
+                <MessageNotification />
+              </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout
