@@ -54,6 +54,8 @@ const UserModel = mongoose.model("USER", UserSchema, "USER");
 const CenterSchema = new mongoose.Schema(
   {
     centerName: String,
+    email: String,
+    phone: String,
     image: String,
     isActive: String,
     location: String,
@@ -115,13 +117,14 @@ app.post("/register-center", async (req, res) => {
 
     await newCenter.save();
     await CenterModel.create({
-      centerName: username,
-      image: "",
-      isActive: "true",
-      location: "",
-    });
-
-    res.send({ message: "Center Registered" });
+  centerName: username,
+  email,
+  phone,
+  image: "",
+  isActive: "true",
+  location: "",
+});
+    res.send({ message: "success" });
   } catch (error) {
     res.send({ message: "Center Register Error: " + error.message });
   }
@@ -417,7 +420,7 @@ const TreatmentSchema = new mongoose.Schema(
     ],
     centerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "USER",
+      ref: "CENTER",
       required: true,
     },
   },
@@ -790,6 +793,146 @@ app.get("/admin/customers/monthly", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+
+// ================= Customer Profile =================
+
+// View Customer Profile
+app.get("/customer/profile/:id", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const user = await UserModel.findOne({
+      _id: req.params.id,
+      role: "customer",
+    }).select("username email phone");
+
+    if (!user) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    res.json({ message: "success", user });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to load profile" });
+  }
+});
+
+// Update Customer Profile
+app.put("/customer/profile/:id", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const user = await UserModel.findOne({
+      _id: req.params.id,
+      role: "customer",
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    const { phone, currentPassword, newPassword } = req.body;
+
+    if (typeof phone !== "string" || !phone.trim()) {
+      return res.status(400).json({ message: "Phone number is required" });
+    }
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({
+          message: "Current password is required",
+        });
+      }
+
+      const isMatch = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+
+      if (!isMatch) {
+        return res.status(400).json({
+          message: "Current password is incorrect",
+        });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({
+          message: "New password must be at least 8 characters",
+        });
+      }
+
+      user.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    user.phone = phone.trim();
+    await user.save();
+
+    res.json({
+      message: "success",
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update profile" });
+  }
+});
+
+
+
+// Get registered centers for customers
+app.get("/customer/centers", async (req, res) => {
+  try {
+    const centers = await CenterModel.find({});
+
+    res.json({ message: "success", centers });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to load centers",
+    });
+  }
+});
+
+
+// Get treatments for a selected center
+app.get("/customer/centers/:centerId/treatments", async (req, res) => {
+  try {
+    const { centerId } = req.params;
+
+    if (!mongoose.isValidObjectId(centerId)) {
+      return res.status(400).json({ message: "Invalid center ID" });
+    }
+
+    const center = await CenterModel.findById(centerId);
+
+    if (!center) {
+      return res.status(404).json({ message: "Center not found" });
+    }
+
+    const treatments = await TreatmentModel.find({
+      centerId: center._id,
+    });
+
+    res.json({
+      message: "success",
+      center,
+      treatments,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to load center treatments",
+    });
+  }
+});
+
+
 
 app.listen(3002, () => {
   console.log("Server Connected...");

@@ -58,7 +58,7 @@ export default function RegisterCenter() {
       });
 
       const result = await response.json();
-      if (!response.ok) {
+      if (!response.ok || result.message !== "success") {
         setError(result.message || "Registration failed");
         return;
       }

@@ -1,34 +1,57 @@
-import React from "react";
+
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import CustomerLayout from "./CustomerLayout";
 import "./Customer.css";
 
-import AbnaLogo from "../../assets/AbnaFreish.png";
-import MuscatLogo from "../../assets/Muscat.jpg";
-import AlManarLogo from "../../assets/AlManar.jpg";
-import AlYahyeaiLogo from "../../assets/AlYahyeai.jpeg";
-import BmcLogo from "../../assets/BMC.jpg";
-
 export default function CustomerCenters() {
-  const centers = [
-    { name: "Abna Freish Center", phone: "+69899558654", image: AbnaLogo },
-    { name: "Muscat Hijama Center", phone: "+69899558654", image: MuscatLogo },
-    { name: "Al Manar Hijama Center", phone: "+69899558654", image: AlManarLogo },
-    { name: "AlYahyaei Hijama Center", phone: "+69899558654", image: AlYahyeaiLogo },
-    { name: "BMC Center", phone: "+69899558654", image: BmcLogo },
-  ];
+  const [centers, setCenters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("http://localhost:3002/customer/centers")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load centers");
+        return res.json();
+      })
+      .then((data) => {
+        if (data.message === "success") {
+          setCenters(data.centers);
+        } else {
+          setError(data.message);
+        }
+      })
+      .catch(() => setError("Failed to load centers"))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <CustomerLayout>
       <div className="centers-content">
         <h1>Discover our Trusted Centers</h1>
+
+        {loading && <p>Loading centers...</p>}
+        {error && <p>{error}</p>}
+
+        {!loading && !error && centers.length === 0 && (
+          <p>No centers available yet.</p>
+        )}
+
         <div className="centers-grid">
-          {centers.map((center, index) => (
-            <div className="center-card-customer" key={index}>
-              <img src={center.image} alt={center.name} />
-              <h3>{center.name}</h3>
-              <p>{center.phone}</p>
-              <Link to="/customer/center-details"><button>View Center</button></Link>
+          {centers.map((center) => (
+            <div className="center-card-customer" key={center._id}>
+              <img
+                src={center.image || "/logo.png"}
+                alt={center.centerName}
+              />
+
+              <h3>{center.centerName}</h3>
+              <p>{center.location || "Location not available"}</p>
+
+              <Link to={`/customer/center-details/${center._id}`}>
+                <button type="button">View Center</button>
+              </Link>
             </div>
           ))}
         </div>

@@ -1,56 +1,101 @@
-import React from "react";
+
+import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CgProfile } from "react-icons/cg";
-import { BsFillHandThumbsUpFill, BsFillHandThumbsDownFill } from "react-icons/bs";
-import { RiDeleteBin2Fill } from "react-icons/ri";
 import CustomerLayout from "./CustomerLayout";
 import "./Customer.css";
-
-import AbnaLogo from "../../assets/AbnaFreish.png";
-import F1 from "../../assets/F1.jpg";
-import F2 from "../../assets/F2.jpg";
-import F3 from "../../assets/F3.webp";
-import F4 from "../../assets/F4.jpg";
 
 export default function CenterDetails() {
   const { centerId } = useParams();
 
-  console.log("Selected Center ID:", centerId);
-  const treatments = [
-    { name: "Hijama", price: "10 OMR", image: F1 },
-    { name: "Oil Massage", price: "15 OMR", image: F2 },
-    { name: "Headache & Migraine Treatment", price: "7 OMR", image: F3 },
-    { name: "Nerve Treatment", price: "8 OMR", image: F4 },
-  ];
+  const [center, setCenter] = useState(null);
+  const [treatments, setTreatments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!centerId) {
+      setError("Please select a center first");
+      setLoading(false);
+      return;
+    }
+
+    const loadCenter = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:3002/customer/centers/${centerId}/treatments`
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || data.message !== "success") {
+          throw new Error(data.message || "Failed to load center");
+        }
+
+        setCenter(data.center);
+        setTreatments(data.treatments || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCenter();
+  }, [centerId]);
 
   return (
     <CustomerLayout>
       <div className="center-details-page">
-        <div className="center-details-logo-box"><img src={AbnaLogo} alt="Abna Freish" /></div>
-        <div className="treatment-list">
-          {treatments.map((item, index) => (
-            <div className="treatment-card" key={index}>
-              <img src={item.image} alt={item.name} />
-              <div className="treatment-info"><p>{item.name}</p><span>{item.price}</span></div>
-              <Link to="/customer/appointment-book"><button type="button">Details</button></Link>
+        {loading && <p>Loading center details...</p>}
+
+        {error && <p>{error}</p>}
+
+        {!loading && !error && center && (
+          <>
+            <div className="center-details-logo-box">
+              <img
+                src={center.image || "/logo.png"}
+                alt={center.centerName}
+              />
+              <h2>{center.centerName}</h2>
+              <p>{center.location || "Location not available"}</p>
             </div>
-          ))}
-        </div>
-        <div className="reviews-section">
-          <h3>Customers Reviews</h3>
-          <div className="reviews-box">
-            <div className="review-card">
-              <div className="review-user"><CgProfile className="small-profile-icon" /><span>Maha Al-Rashdi</span></div>
-              <p>I tried cupping with them, and the experience was excellent. I did it with Dr. Aisha, and her touch is very gentle.</p>
-              <div className="review-icons"><BsFillHandThumbsDownFill className="clickable-icon" /><BsFillHandThumbsUpFill className="clickable-icon" /></div>
+
+            <div className="treatment-list">
+              {treatments.length === 0 ? (
+                <p>No treatments available for this center yet.</p>
+              ) : (
+                treatments.map((item) => (
+                  <div className="treatment-card" key={item._id}>
+                    <img
+                      src={item.image || "/logo.png"}
+                      alt={item.name || item.trName}
+                    />
+
+                    <div className="treatment-info">
+                      <p>{item.name || item.trName}</p>
+                      <span>{item.price} OMR</span>
+                    </div>
+
+                    <Link
+                      to={`/customer/appointment-book/${item._id}`}
+                    >
+                      <button type="button">Details</button>
+                    </Link>
+                  </div>
+                ))
+              )}
             </div>
-            <div className="review-card">
-              <div className="review-user"><CgProfile className="small-profile-icon" /><span>Ali Salim</span></div>
-              <p>I took my mother for herbal treatment, and the experience was excellent. Her joint pain eased significantly.</p>
-              <div className="review-icons"><RiDeleteBin2Fill className="clickable-icon delete-icon" /></div>
+
+            <div className="reviews-section">
+              <h3>Customers Reviews</h3>
+              <div className="reviews-box">
+                <p>No reviews available yet.</p>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </CustomerLayout>
   );

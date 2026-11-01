@@ -6,21 +6,30 @@ import "./Customer.css";
 export default function BookingConfirmation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const date = location.state?.date;
+  const { treatment, treatmentId, date, slotStart } = location.state || {};
 
   return (
     <CustomerLayout>
       <div className="booking-content">
         <h1>Confirm Booking</h1>
         <div className="confirm-card">
-          <p><strong>Treatment:</strong> Hijama (Cupping Therapy)</p>
-          <p><strong>Center:</strong> Abna Freish Center</p>
-          <p><strong>Location:</strong> Muscat, Al Seeb</p>
+          <p><strong>Treatment:</strong> {treatment?.name || treatment?.trName}</p>
+          <p><strong>Location:</strong> {treatment?.location || "Not available"}</p>
           <p><strong>Date:</strong> {date}</p>
-          <p><strong>Duration:</strong> 45 minutes</p>
-          <p><strong>Price:</strong> 10 OMR</p>
+          <p><strong>Time:</strong> {slotStart}</p>
+          <p><strong>Duration:</strong> {treatment?.duration} minutes</p>
+          <p><strong>Price:</strong> {treatment?.price} OMR</p>
         </div>
-        <button className="booking-btn" onClick={() => navigate("/customer/payment")}>Continue to Payment</button>
+        <button className="booking-btn" onClick={() =>
+          navigate("/customer/payment", {
+            state: {
+              treatment,
+              treatmentId,
+              date,
+              slotStart
+            }
+          })
+        }>Continue to Payment</button>
         <button className="booking-btn" onClick={() => navigate(-1)}>Back</button>
       </div>
     </CustomerLayout>
