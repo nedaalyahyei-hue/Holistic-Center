@@ -121,15 +121,11 @@ export default function AdminManagement() {
             <span className="menu-text">Menu</span>
           </div>
           <div className="topbar-center">
+            <span className="nav-item" onClick={() => navigate("/admin/dashboard")}>
+              Dashboard
+            </span>
             <span className="nav-item active">
               Admin Management
-            </span>
-
-            <span
-              className="nav-item"
-              onClick={() => navigate("/admin/dashboard")}
-            >
-              Dashboard
             </span>
           </div>
           <div className="topbar-right">
@@ -143,38 +139,21 @@ export default function AdminManagement() {
         <div className="layout">
           <div className={`sidebar ${open ? "open" : ""}`}>
             <div className="sidebar-content">
-              <div
-                className="sidebar-item"
-                onClick={() => navigate("/admin/dashboard")}
-              >
+              <div className="sidebar-item" onClick={() => navigate("/admin/dashboard")}>
                 Dashboard
               </div>
-              <div
-                className="sidebar-item active"
-                onClick={() => setShowAdminMenu(!showAdminMenu)}
-                style={{ cursor: "pointer" }}
-              >
+
+              <div className="sidebar-item active" onClick={() => navigate("/admin/management")}>
                 Admin Management
               </div>
 
-              {showAdminMenu && (
-                <div style={{ paddingLeft: "25px" }}>
+              <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>
+                Register Center
+              </div>
 
-                  <div
-                    className="sidebar-item"
-                    onClick={() => navigate("/admin/register-center")}
-                  >
-                    Register Center
-                  </div>
-
-                  <div
-                    className="sidebar-item"
-                    onClick={() => navigate("/admin/messages")}
-                  >
-                    Messages
-                  </div>
-                </div>
-              )}
+              <div className="sidebar-item" onClick={() => navigate("/admin/messages")}>
+                Messages
+              </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout

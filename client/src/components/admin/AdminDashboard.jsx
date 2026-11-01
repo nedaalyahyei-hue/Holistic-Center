@@ -150,7 +150,6 @@ export default function AdminDashboard() {
           <div className="topbar-center">
             <span className="nav-item active" onClick={() => navigate("/admin/dashboard")}>Dashboard</span>
             <span className="nav-item" onClick={() => navigate("/admin/management")}>Admin Management</span>
-            <span className="nav-item" onClick={() => navigate("/admin/register-center")}>Register Center</span>
           </div>
           <div className="topbar-right">
             <button className="icon-btn" onClick={() => navigate("/admin/dashboard")}><FaHome /></button>
@@ -164,9 +163,21 @@ export default function AdminDashboard() {
         <div className="layout">
           <div className={`sidebar ${open ? "open" : ""}`}>
             <div className="sidebar-content">
-              <div className="sidebar-item active" onClick={() => navigate("/admin/dashboard")}>Dashboard</div>
-              <div className="sidebar-item" onClick={() => navigate("/admin/management")}>Admin Management</div>
-              <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>Register Center</div>
+              <div className="sidebar-item active" onClick={() => navigate("/admin/dashboard")}>
+                Dashboard
+              </div>
+
+              <div className="sidebar-item" onClick={() => navigate("/admin/management")}>
+                Admin Management
+              </div>
+
+              <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>
+                Register Center
+              </div>
+
+              <div className="sidebar-item" onClick={() => navigate("/admin/messages")}>
+                Messages
+              </div>
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout

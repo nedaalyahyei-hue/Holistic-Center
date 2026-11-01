@@ -130,14 +130,14 @@ export default function RegisterCenter() {
 
               <input
                 type="text"
-                placeholder="Center Nick Name"
+                placeholder="Enter Center Name"
                 className="input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <input
                 type="email"
-                placeholder="Center Email (... .om)"
+                placeholder="centername@gmail.om"
                 className="input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
