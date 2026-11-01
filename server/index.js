@@ -500,9 +500,10 @@ const TreatmentSchema = new mongoose.Schema(
         doctor: { type: String, required: true },
       },
     ],
+    // centerId = the _id of the center's login account in the USER collection
     centerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "CENTER",
+      ref: "USER",
       required: true,
     },
   },
@@ -740,6 +741,18 @@ app.get("/bookings/center/:centerId", async (req, res) => {
   }
 });
 
+// Get all bookings of one customer (booking history)
+app.get("/bookings/customer/:email", async (req, res) => {
+  try {
+    const bookings = await BookingModel.find({
+      customerEmail: req.params.email,
+    }).sort({ date: -1 });
+    res.send({ message: "success", bookings });
+  } catch (error) {
+    res.send({ message: "Get Bookings Error: " + error.message });
+  }
+});
+
 // Center asks the customer for permission (edit or cancel)
 app.put("/bookings/:id/request-change", async (req, res) => {
   try {
@@ -786,7 +799,25 @@ app.put("/bookings/:id/date", async (req, res) => {
       return res.send({ message: "Customer approval required" });
     }
 
-    booking.date = req.body.date;
+    // validate the new date
+    const newDate = req.body.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate || "")) {
+      return res.send({ message: "Invalid date" });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (newDate < today) return res.send({ message: "Invalid date" });
+
+    if (booking.treatmentId) {
+      const treatment = await TreatmentModel.findById(booking.treatmentId);
+      if (treatment) {
+        const weekday = new Date(newDate + "T00:00:00Z").getUTCDay();
+        if (!treatment.workDays.includes(weekday)) {
+          return res.send({ message: "The center is closed on this day" });
+        }
+      }
+    }
+
+    booking.date = newDate;
     booking.changeType = "";
     booking.changeStatus = "none";
     try {
@@ -815,6 +846,159 @@ app.delete("/bookings/:id", async (req, res) => {
     res.send({ message: "success" });
   } catch (error) {
     res.send({ message: "Cancel Error: " + error.message });
+  }
+});
+
+// ================= Refund =================
+const RefundSchema = new mongoose.Schema(
+  {
+    bookingId: { type: mongoose.Schema.Types.ObjectId, ref: "BOOKING", required: true },
+    centerId: { type: mongoose.Schema.Types.ObjectId, ref: "USER", required: true },
+    treatmentName: String,
+    customerName: String,
+    customerEmail: { type: String, required: true },
+    amount: { type: Number, required: true },
+    bookingDate: String,
+    bookingTime: String,
+    reason: { type: String, required: true },
+    status: { type: String, default: "pending" }, // pending | approved | rejected
+    decidedAt: Date,
+  },
+  { timestamps: true }
+);
+
+// one refund request per booking
+RefundSchema.index({ bookingId: 1 }, { unique: true });
+
+const RefundModel = mongoose.model("REFUND", RefundSchema, "REFUND");
+
+// ================= Notification (for customers) =================
+const NotificationSchema = new mongoose.Schema(
+  {
+    customerEmail: { type: String, required: true },
+    type: { type: String, default: "refund" },
+    text: { type: String, required: true },
+    isRead: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
+const NotificationModel = mongoose.model("NOTIFICATION", NotificationSchema, "NOTIFICATION");
+
+// Customer submits a refund request
+app.post("/refunds", async (req, res) => {
+  try {
+    const { bookingId, customerEmail, reason } = req.body;
+
+    if (!mongoose.isValidObjectId(bookingId)) return res.send({ message: "Invalid booking" });
+    if (!reason || !reason.trim()) return res.send({ message: "Reason is required" });
+
+    const booking = await BookingModel.findById(bookingId);
+    if (!booking) return res.send({ message: "Booking not found" });
+
+    // the booking must belong to the customer who is asking
+    if (!customerEmail || booking.customerEmail !== customerEmail) {
+      return res.send({ message: "This booking does not belong to you" });
+    }
+
+    // amount, center and booking details come from the booking itself
+    const refund = await RefundModel.create({
+      bookingId: booking._id,
+      centerId: booking.centerId,
+      treatmentName: booking.treatmentName,
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      amount: booking.price,
+      bookingDate: booking.date,
+      bookingTime: booking.time,
+      reason: reason.trim(),
+    });
+
+    res.send({ message: "success", refund });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.send({ message: "A refund request already exists for this booking" });
+    }
+    res.send({ message: "Refund Error: " + error.message });
+  }
+});
+
+// Refund requests of one center
+app.get("/refunds/center/:centerId", async (req, res) => {
+  try {
+    const refunds = await RefundModel.find({ centerId: req.params.centerId })
+      .sort({ createdAt: -1 });
+    res.send({ message: "success", refunds });
+  } catch (error) {
+    res.send({ message: "Get Refunds Error: " + error.message });
+  }
+});
+
+// Refund requests of one customer
+app.get("/refunds/customer/:email", async (req, res) => {
+  try {
+    const refunds = await RefundModel.find({ customerEmail: req.params.email })
+      .sort({ createdAt: -1 });
+    res.send({ message: "success", refunds });
+  } catch (error) {
+    res.send({ message: "Get Refunds Error: " + error.message });
+  }
+});
+
+// Center approves or rejects a refund request
+app.put("/refunds/:id/decision", async (req, res) => {
+  try {
+    const { approved } = req.body;
+
+    const refund = await RefundModel.findById(req.params.id);
+    if (!refund) return res.send({ message: "Refund request not found" });
+    if (refund.status !== "pending") {
+      return res.send({ message: "This request was already answered" });
+    }
+
+    refund.status = approved ? "approved" : "rejected";
+    refund.decidedAt = new Date();
+    await refund.save();
+
+    // approved: the booking is cancelled, so the time slot becomes free again
+    if (approved) {
+      await BookingModel.findByIdAndDelete(refund.bookingId);
+    }
+
+    // notify the customer
+    await NotificationModel.create({
+      customerEmail: refund.customerEmail,
+      type: "refund",
+      text: approved
+        ? `Your refund request for ${refund.treatmentName} (${refund.amount} OMR) was approved.`
+        : `Your refund request for ${refund.treatmentName} (${refund.amount} OMR) was rejected.`,
+    });
+
+    res.send({ message: "success", refund });
+  } catch (error) {
+    res.send({ message: "Decision Error: " + error.message });
+  }
+});
+
+// Notifications of one customer
+app.get("/notifications/customer/:email", async (req, res) => {
+  try {
+    const notifications = await NotificationModel.find({
+      customerEmail: req.params.email,
+    }).sort({ createdAt: -1 });
+    res.send({ message: "success", notifications });
+  } catch (error) {
+    res.send({ message: "Get Notifications Error: " + error.message });
+  }
+});
+
+// Mark a notification as read
+app.put("/notifications/:id/read", async (req, res) => {
+  try {
+    await NotificationModel.findByIdAndUpdate(req.params.id, { isRead: true });
+    res.send({ message: "success" });
+  } catch (error) {
+    res.send({ message: "Read Error: " + error.message });
   }
 });
 
@@ -967,14 +1151,58 @@ app.put("/customer/profile/:id", async (req, res) => {
   }
 });
 
+// ================= Customer: centers and treatments =================
 
+// A CENTER record (managed by the admin) and the center's login account (USER)
+// are linked by email, or by name for older records without an email.
+async function findCenterUser(center) {
+  const fields = "username email phone image description locations";
+
+  if (center.email) {
+    const byEmail = await UserModel.findOne({
+      role: "center",
+      email: center.email,
+    }).select(fields);
+    if (byEmail) return byEmail;
+  }
+
+  return UserModel.findOne({
+    role: "center",
+    username: center.centerName,
+  }).select(fields);
+}
+
+// Merge the CENTER record with the profile the center edited (image, phone, locations...)
+function mergeCenter(center, user) {
+  const c = center.toObject();
+  if (!user) return { ...c, locations: [] };
+
+  const locations = (user.locations || []).map((l) => ({
+    name: l.name,
+    mapUrl: l.mapUrl,
+  }));
+
+  return {
+    ...c,
+    phone: user.phone || c.phone,
+    image: user.image || c.image,
+    description: user.description || "",
+    locations,
+    // text version for pages that show one line
+    location: locations.length ? locations.map((l) => l.name).join(", ") : c.location,
+  };
+}
 
 // Get registered centers for customers
 app.get("/customer/centers", async (req, res) => {
   try {
     const centers = await CenterModel.find({});
 
-    res.json({ message: "success", centers });
+    const result = await Promise.all(
+      centers.map(async (c) => mergeCenter(c, await findCenterUser(c)))
+    );
+
+    res.json({ message: "success", centers: result });
   } catch (error) {
     res.status(500).json({
       message: "Failed to load centers",
@@ -983,7 +1211,7 @@ app.get("/customer/centers", async (req, res) => {
 });
 
 
-// Get treatments for a selected center
+// Get treatments for a selected center (only treatments that can be booked)
 app.get("/customer/centers/:centerId/treatments", async (req, res) => {
   try {
     const { centerId } = req.params;
@@ -998,13 +1226,19 @@ app.get("/customer/centers/:centerId/treatments", async (req, res) => {
       return res.status(404).json({ message: "Center not found" });
     }
 
-    const treatments = await TreatmentModel.find({
-      centerId: center._id,
-    });
+    const user = await findCenterUser(center);
+
+    // treatments are saved with the center's USER _id
+    const treatments = user
+      ? await TreatmentModel.find({
+          centerId: user._id,
+          "slots.0": { $exists: true },
+        }).sort({ createdAt: -1 })
+      : [];
 
     res.json({
       message: "success",
-      center,
+      center: mergeCenter(center, user),
       treatments,
     });
   } catch (error) {
