@@ -13,6 +13,13 @@ export default function AppointmentsHistory() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Cancel & Refund Request
+  const [refundingId, setRefundingId] = useState(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundSaving, setRefundSaving] = useState(false);
+  const [refundError, setRefundError] = useState("");
+  const [refundSuccess, setRefundSuccess] = useState("");
+
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const loadBookings = async () => {
@@ -110,6 +117,46 @@ export default function AppointmentsHistory() {
       setSaving(false);
     }
   };
+
+
+  const submitRefundRequest = async () => {
+    if (!refundingId || !refundReason.trim() || refundSaving) return;
+
+    setRefundSaving(true);
+    setRefundError("");
+    setRefundSuccess("");
+
+    try {
+      const response = await fetch("http://localhost:3002/refunds", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bookingId: refundingId,
+          customerEmail: user.email,
+          reason: refundReason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.message !== "success") {
+        setRefundError(data.message || "Failed to submit refund request.");
+        return;
+      }
+
+      setRefundSuccess("Cancel & Refund request submitted successfully.");
+      setRefundingId(null);
+      setRefundReason("");
+    } catch (err) {
+      console.error("Refund request error:", err);
+      setRefundError("Unable to submit refund request.");
+    } finally {
+      setRefundSaving(false);
+    }
+  };
+
 
   return (
     <CustomerLayout>
@@ -209,14 +256,68 @@ export default function AppointmentsHistory() {
                     Edit Booking
                   </button>
 
-                  {/* TODO: Connect to Refund API later */}
+
                   <button
                     className="history-btn"
-                    disabled
-                    title="Refund feature will be implemented later"
+                    onClick={() => {
+                      setRefundingId(booking._id);
+                      setRefundReason("");
+                      setRefundError("");
+                      setRefundSuccess("");
+                    }}
                   >
-                    Request Approval for Cancel and Refund
+                    Request Cancel & Refund
                   </button>
+
+                  {refundingId === booking._id && (
+                    <div className="history-card history-edit-card">
+                      <h3>Request Cancel & Refund</h3>
+
+                      <p>Reason for Cancellation:</p>
+
+                      <textarea
+                        value={refundReason}
+                        onChange={(e) => setRefundReason(e.target.value)}
+                        placeholder="Enter your reason..."
+                        rows={4}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          borderRadius: "8px",
+                          border: "1px solid #76a37b",
+                          boxSizing: "border-box",
+                          resize: "vertical"
+                        }}
+                      />
+
+                      {refundError && (
+                        <p style={{ color: "red" }}>{refundError}</p>
+                      )}
+
+                      <div className="history-edit-actions">
+                        <button
+                          className="history-btn"
+                          onClick={submitRefundRequest}
+                          disabled={!refundReason.trim() || refundSaving}
+                        >
+                          {refundSaving ? "Submitting..." : "Submit Request"}
+                        </button>
+
+                        <button
+                          className="history-btn"
+                          onClick={() => {
+                            setRefundingId(null);
+                            setRefundReason("");
+                            setRefundError("");
+                          }}
+                          disabled={refundSaving}
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 </>
               )}
             </div>
