@@ -87,6 +87,7 @@ export default function CustomerLayout({ children }) {
           <div className="customer-sidebar">
             <Link to="/customer/centers">Centers</Link>
             <Link to="/customer/dashboard">Dashboard</Link>
+            <Link to="/customer/history">Booking History</Link>
             <Link to="/customer/chatbot">Chatbot</Link>
             <Link to="/customer/contact">Contact With Centers</Link>
             <Link to="/customer/contact-admin">Contact With Admin</Link>

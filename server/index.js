@@ -729,6 +729,93 @@ app.post("/bookings", async (req, res) => {
   }
 });
 
+
+ // Customer edits booking date and time
+app.put("/bookings/:id/customer-edit", async (req, res) => {
+  try {
+    const { customerEmail, date, slotStart } = req.body;
+
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid booking ID" });
+    }
+
+    const booking = await BookingModel.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (!customerEmail || booking.customerEmail !== customerEmail) {
+      return res.status(403).json({
+        message: "This booking does not belong to you",
+      });
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") ||
+        !Number.isFinite(Date.parse(date + "T00:00:00Z")) ||
+        new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) {
+      return res.status(400).json({ message: "Invalid date" });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (date < today) {
+      return res.status(400).json({
+        message: "Cannot select a past date",
+      });
+    }
+
+    const treatment = await TreatmentModel.findById(booking.treatmentId);
+
+    if (!treatment) {
+      return res.status(404).json({ message: "Treatment not found" });
+    }
+
+    const weekday = new Date(date + "T00:00:00Z").getUTCDay();
+
+    if (!treatment.workDays.includes(weekday)) {
+      return res.status(400).json({
+        message: "The center is closed on this day",
+      });
+    }
+
+    const slot = treatment.slots.find(
+      (s) => s.start === slotStart
+    );
+
+    if (!slot) {
+      return res.status(400).json({
+        message: "Invalid time slot",
+      });
+    }
+
+    booking.date = date;
+    booking.time = slot.start;
+    booking.slotStart = slot.start;
+    booking.slotEnd = slot.end;
+    booking.doctor = slot.doctor;
+
+    try {
+      await booking.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({
+          message: "This time slot is already booked",
+        });
+      }
+      throw error;
+    }
+
+    res.json({ message: "success", booking });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Update Booking Error: " + error.message,
+    });
+  }
+});
+
+
 // Get all bookings of one center
 app.get("/bookings/center/:centerId", async (req, res) => {
   try {

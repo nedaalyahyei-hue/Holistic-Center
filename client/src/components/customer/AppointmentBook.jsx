@@ -56,56 +56,56 @@ export default function TreatmentBooking() {
     setSelectedDay(null);
   }
 
-useEffect(() => {
-  setSelectedSlot(null);
+  useEffect(() => {
+    setSelectedSlot(null);
 
-  if (!selectedDay || !treatmentId) {
-    setAvailableSlots([]);
-    return;
-  }
-
-  const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
-
-  fetch(`http://localhost:3002/treatments/${treatmentId}/availability/${date}`)
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.message === "success" && data.open) {
-        setAvailableSlots(data.slots || []);
-      } else {
-        setAvailableSlots([]);
-      }
-    })
-    .catch((error) => {
-      console.error("Error loading available slots:", error);
+    if (!selectedDay || !treatmentId) {
       setAvailableSlots([]);
-    });
-}, [selectedDay, month, year, treatmentId]);
+      return;
+    }
+
+    const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
+
+    fetch(`http://localhost:3002/treatments/${treatmentId}/availability/${date}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.message === "success" && data.open) {
+          setAvailableSlots(data.slots || []);
+        } else {
+          setAvailableSlots([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading available slots:", error);
+        setAvailableSlots([]);
+      });
+  }, [selectedDay, month, year, treatmentId]);
 
   function isDisabled(day) {
-  const date = new Date(year, month, day);
-  const todayStart = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  );
+    const date = new Date(year, month, day);
+    const todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
 
-  const isPast = date < todayStart;
-  const isClosed = !treatment?.workDays?.includes(date.getDay());
+    const isPast = date < todayStart;
+    const isClosed = !treatment?.workDays?.includes(date.getDay());
 
-  return isPast || isClosed;
-}
+    return isPast || isClosed;
+  }
   function confirmBooking() {
-  const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
+    const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
 
-  navigate("/customer/booking-confirmation", {
-    state: {
-      treatment,
-      treatmentId,
-      date,
-      slotStart: selectedSlot
-    }
-  });
-}
+    navigate("/customer/booking-confirmation", {
+      state: {
+        treatment,
+        treatmentId,
+        date,
+        slotStart: selectedSlot
+      }
+    });
+  }
 
   // أرقام الأيام مع فراغات في البداية
   const calendarDays = [];
@@ -159,25 +159,44 @@ useEffect(() => {
             </div>
 
             {selectedDay && (
-  <div className="booking-time-slots">
-    <h3>Select Time</h3>
+              <div className="booking-time-slots">
+                <h3>Select Time</h3>
 
-    {availableSlots.length > 0 ? (
-      availableSlots.map((slot, index) => (
-        <button
-          key={index}
-          type="button"
-          className={selectedSlot === slot.start ? "selected" : ""}
-          onClick={() => setSelectedSlot(slot.start)}
-        >
-          {slot.start}
-        </button>
-      ))
-    ) : (
-      <p>No available time slots for this date.</p>
-    )}
-  </div>
-)}
+                {availableSlots.length > 0 ? (
+
+                  availableSlots.map((slot, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className={selectedSlot === slot.start ? "selected" : ""}
+                      disabled={slot.booked}
+                      onClick={() => {
+                        if (!slot.booked) {
+                          setSelectedSlot(slot.start);
+                        }
+                      }}
+                      style={
+                        slot.booked
+                          ? {
+                            backgroundColor: "#e0e0e0",
+                            color: "#888",
+                            borderColor: "#ccc",
+                            cursor: "not-allowed",
+                            opacity: 0.7,
+                          }
+                          : {}
+                      }
+                      title={slot.booked ? "Already booked" : "Available"}
+                    >
+                      {slot.start} {slot.booked ? "(Booked)" : ""}
+                    </button>
+                  ))
+
+                ) : (
+                  <p>No available time slots for this date.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <button className="booking-btn" onClick={confirmBooking} disabled={!selectedDay || !selectedSlot}>Confirm Booking</button>
