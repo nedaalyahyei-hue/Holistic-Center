@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { FaBars, FaMoon, FaSun, FaEdit, FaTimesCircle, FaClock } from "react-icons/fa";
-import {
-  MdLanguage, MdAttachMoney, MdOutlineMedicalServices, MdEmail, MdAccountCircle,
-} from "react-icons/md";
-import { IoLogOutOutline } from "react-icons/io5";
+import { FaEdit, FaTimesCircle, FaClock } from "react-icons/fa";
+import { MdAttachMoney, MdOutlineMedicalServices, MdEmail, MdAccountCircle } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import "./UpdateandCancelAppointment.css";
+import CenterShell from "./CenterShell";
+import { useLang } from "./centerLang";
 
 const API = "http://localhost:3002";
 
 export default function UpdateandCancelAppointment() {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const { t, ts } = useLang();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +41,8 @@ export default function UpdateandCancelAppointment() {
     setAppointments((prev) => prev.map((a) => (a._id === updated._id ? updated : a)));
 
   const requestChange = async (appt, type) => {
-    if (!window.confirm(`Send a ${type} permission request to ${appt.customerName}?`)) return;
+    const typeText = type === "edit" ? t("typeEdit") : t("typeCancel");
+    if (!window.confirm(t("confirmRequest", { type: typeText, name: appt.customerName }))) return;
     try {
       const res = await fetch(`${API}/bookings/${appt._id}/request-change`, {
         method: "PUT",
@@ -52,9 +51,9 @@ export default function UpdateandCancelAppointment() {
       });
       const result = await res.json();
       if (result.message === "success") replaceBooking(result.booking);
-      else alert(result.message);
+      else alert(ts(result.message));
     } catch (error) {
-      alert("Server Error");
+      alert(t("serverError"));
     }
   };
 
@@ -71,25 +70,26 @@ export default function UpdateandCancelAppointment() {
     const approved = appt.changeStatus === "approved" && appt.changeType === "cancel";
     if (!approved) return requestChange(appt, "cancel");
 
-    if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
+    if (!window.confirm(t("confirmCancelAppt"))) return;
     try {
       const res = await fetch(`${API}/bookings/${appt._id}`, { method: "DELETE" });
       const result = await res.json();
       if (result.message === "success") {
         setAppointments(appointments.filter((a) => a._id !== appt._id));
       } else {
-        alert(result.message);
+        alert(ts(result.message));
       }
     } catch (error) {
-      alert("Server Error");
+      alert(t("serverError"));
     }
   };
 
   const statusText = (a) => {
-    if (a.changeStatus === "pending") return `Waiting for the customer to approve the ${a.changeType}...`;
-    if (a.changeStatus === "approved") return `Customer approved the ${a.changeType}`;
-    if (a.changeStatus === "rejected") return "Customer rejected the request";
-    return "No permission requested yet";
+    const typeText = a.changeType === "cancel" ? t("typeCancel") : t("typeEdit");
+    if (a.changeStatus === "pending") return t("statusWaiting", { type: typeText });
+    if (a.changeStatus === "approved") return t("statusApproved", { type: typeText });
+    if (a.changeStatus === "rejected") return t("statusRejected");
+    return t("statusNone");
   };
 
   const statusColor = (a) => {
@@ -100,144 +100,105 @@ export default function UpdateandCancelAppointment() {
   };
 
   return (
-    <div className={`center-page ${darkMode ? "dark" : ""}`}>
-      <div className="center-overlay">
-        <div className="topbar">
-          <div className="topbar-left">
-            <button className="icon-btn" onClick={() => setOpen(!open)}><FaBars /></button>
-            <button className="icon-btn profile-nav-btn" onClick={() => navigate("/center/center-profile")}>
-              <MdAccountCircle size={32} />
-            </button>
-            <span className="menu-text">Center Panel</span>
-          </div>
+    <CenterShell active="managementAppointments">
+      <img src={logoImg} alt="HCS Logo" className="profile-logo"
+        style={{ width: "180px", marginBottom: "10px" }} />
+      <h2 className="title"><MdOutlineMedicalServices /> {t("updateCancelTitle")}</h2>
 
-          <div className="topbar-center">
-            <div className="nav-item" onClick={() => navigate("/center/dashboard")}>Dashboard</div>
-          </div>
+      <button
+        className="save-btn"
+        style={{ width: "140px", height: "42px", marginBottom: "15px" }}
+        onClick={loadAppointments}
+      >
+        {t("refresh")}
+      </button>
 
-          <div className="topbar-right">
-            <button className="icon-btn" onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? <FaSun color="#f1c40f" /> : <FaMoon />}
-            </button>
-            <button className="icon-btn"><MdLanguage /></button>
-          </div>
-        </div>
+      <div className="appointments-list-container">
+        {loading && <p style={{ textAlign: "center" }}>{t("loading")}</p>}
 
-        <div className="layout">
-          <div className={`sidebar ${open ? "open" : ""}`}>
-            <div className="sidebar-content">
-              <div className="sidebar-item" onClick={() => navigate("/center/center-profile")}>Profile</div>
-              <div className="sidebar-item" onClick={() => navigate("/center/dashboard")}>Dashboard</div>
-              <div className="sidebar-item" onClick={() => navigate("/center/management")}>Management</div>
-              <div className="sidebar-item" onClick={() => navigate("/center/appointment-refundApproval")}>Refund Requests</div>
-              <div className="sidebar-item" onClick={() => navigate("/center/add-treatment")}>Add Treatment</div>
-              <div className="sidebar-item" onClick={() => navigate("/center/edit-treatment")}>Edit Treatment</div>
-              <div className="sidebar-item active">Management Appointments</div>
-            </div>
+        {!loading && appointments.length === 0 && (
+          <p style={{ textAlign: "center", marginTop: "20px" }}>{t("noAppointments")}</p>
+        )}
 
-            <div className="sidebar-logout" onClick={() => navigate("/")}>
-              <IoLogOutOutline size={20} /> Logout
-            </div>
-          </div>
+        {appointments.map((appt) => {
+          const pending = appt.changeStatus === "pending";
+          const approved = appt.changeStatus === "approved";
+          const approvedEdit = approved && appt.changeType === "edit";
+          const approvedCancel = approved && appt.changeType === "cancel";
 
-          <div className="content-wrapper">
-            <img src={logoImg} alt="HCS Logo" className="profile-logo"
-              style={{ width: "180px", marginBottom: "10px" }} />
-            <h2 className="title"><MdOutlineMedicalServices /> Update and Cancel Appointment</h2>
-
-            <button className="save-btn" style={{ marginBottom: "15px" }} onClick={loadAppointments}>
-              Refresh
-            </button>
-
-            <div className="appointments-list-container">
-              {loading && <p style={{ textAlign: "center" }}>Loading...</p>}
-
-              {!loading && appointments.length === 0 && (
-                <p style={{ textAlign: "center", marginTop: "20px" }}>No appointments found.</p>
-              )}
-
-              {appointments.map((appt) => {
-                const pending = appt.changeStatus === "pending";
-                const approved = appt.changeStatus === "approved";
-                const approvedEdit = approved && appt.changeType === "edit";
-                const approvedCancel = approved && appt.changeType === "cancel";
-
-                return (
-                  <div key={appt._id} className="form-box appointment-card">
-                    <div className="card-header-info">
-                      <div className="user-profile-info">
-                        <MdAccountCircle size={40} color="#76a37b" />
-                        <div>
-                          <h3>{appt.customerName}</h3>
-                          <span className="email-span"><MdEmail /> {appt.customerEmail}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="appointment-details-grid">
-                      <div className="detail-item">
-                        <label><MdOutlineMedicalServices /> Service</label>
-                        <p>{appt.treatmentName}</p>
-                      </div>
-                      <div className="detail-item">
-                        <label><MdAttachMoney /> Price</label>
-                        <p>{appt.price} OMR</p>
-                      </div>
-                      <div className="detail-item">
-                        <label><FaClock /> Date</label>
-                        <p>{appt.date}</p>
-                      </div>
-                      <div className="detail-item">
-                        <label><FaClock /> Time</label>
-                        <p>{appt.time}</p>
-                      </div>
-                    </div>
-
-                    {/* Customer permission box */}
-                    <div style={{
-                      margin: "15px 0",
-                      padding: "12px 15px",
-                      border: `2px solid ${statusColor(appt)}`,
-                      borderRadius: "10px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}>
-                      <input type="checkbox" checked={approved} disabled
-                        style={{ width: 20, height: 20 }} />
-                      <div>
-                        <strong>Customer Approval</strong>
-                        <div style={{ color: statusColor(appt), fontSize: "14px" }}>
-                          {statusText(appt)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="form-actions card-btns">
-                      <button
-                        className="save-btn edit-btn"
-                        disabled={pending || (approved && !approvedEdit)}
-                        style={{ opacity: pending || (approved && !approvedEdit) ? 0.5 : 1 }}
-                        onClick={() => handleEdit(appt)}
-                      >
-                        <FaEdit /> {approvedEdit ? "Edit" : "Request Edit Permission"}
-                      </button>
-                      <button
-                        className="save-btn cancel-btn"
-                        disabled={pending || (approved && !approvedCancel)}
-                        style={{ opacity: pending || (approved && !approvedCancel) ? 0.5 : 1 }}
-                        onClick={() => handleCancel(appt)}
-                      >
-                        <FaTimesCircle /> {approvedCancel ? "Cancel" : "Request Cancel Permission"}
-                      </button>
-                    </div>
+          return (
+            <div key={appt._id} className="form-box appointment-card">
+              <div className="card-header-info">
+                <div className="user-profile-info">
+                  <MdAccountCircle size={40} color="#76a37b" />
+                  <div>
+                    <h3>{appt.customerName}</h3>
+                    <span className="email-span"><MdEmail /> {appt.customerEmail}</span>
                   </div>
-                );
-              })}
+                </div>
+              </div>
+
+              <div className="appointment-details-grid">
+                <div className="detail-item">
+                  <label><MdOutlineMedicalServices /> {t("service")}</label>
+                  <p>{appt.treatmentName}</p>
+                </div>
+                <div className="detail-item">
+                  <label><MdAttachMoney /> {t("priceLbl")}</label>
+                  <p>{appt.price} {t("omr")}</p>
+                </div>
+                <div className="detail-item">
+                  <label><FaClock /> {t("dateLbl")}</label>
+                  <p>{appt.date}</p>
+                </div>
+                <div className="detail-item">
+                  <label><FaClock /> {t("timeLbl")}</label>
+                  <p>{appt.time}</p>
+                </div>
+              </div>
+
+              {/* Customer permission box */}
+              <div style={{
+                margin: "15px 0",
+                padding: "12px 15px",
+                border: `2px solid ${statusColor(appt)}`,
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}>
+                <input type="checkbox" checked={approved} disabled
+                  style={{ width: 20, height: 20 }} />
+                <div>
+                  <strong>{t("customerApproval")}</strong>
+                  <div style={{ color: statusColor(appt), fontSize: "14px" }}>
+                    {statusText(appt)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-actions card-btns">
+                <button
+                  className="save-btn edit-btn"
+                  disabled={pending || (approved && !approvedEdit)}
+                  style={{ opacity: pending || (approved && !approvedEdit) ? 0.5 : 1 }}
+                  onClick={() => handleEdit(appt)}
+                >
+                  <FaEdit /> {approvedEdit ? t("edit") : t("reqEdit")}
+                </button>
+                <button
+                  className="save-btn cancel-btn"
+                  disabled={pending || (approved && !approvedCancel)}
+                  style={{ opacity: pending || (approved && !approvedCancel) ? 0.5 : 1 }}
+                  onClick={() => handleCancel(appt)}
+                >
+                  <FaTimesCircle /> {approvedCancel ? t("cancel") : t("reqCancel")}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
-    </div>
+    </CenterShell>
   );
 }

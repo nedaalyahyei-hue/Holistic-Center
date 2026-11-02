@@ -1155,21 +1155,27 @@ app.put("/customer/profile/:id", async (req, res) => {
 
 // A CENTER record (managed by the admin) and the center's login account (USER)
 // are linked by email, or by name for older records without an email.
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 async function findCenterUser(center) {
   const fields = "username email phone image description locations";
 
-  if (center.email) {
+  if (center.email && center.email.trim()) {
     const byEmail = await UserModel.findOne({
       role: "center",
-      email: center.email,
+      email: new RegExp(`^${escapeRegex(center.email.trim())}$`, "i"),
     }).select(fields);
     if (byEmail) return byEmail;
   }
 
-  return UserModel.findOne({
-    role: "center",
-    username: center.centerName,
-  }).select(fields);
+  if (center.centerName && center.centerName.trim()) {
+    return UserModel.findOne({
+      role: "center",
+      username: new RegExp(`^${escapeRegex(center.centerName.trim())}$`, "i"),
+    }).select(fields);
+  }
+
+  return null;
 }
 
 // Merge the CENTER record with the profile the center edited (image, phone, locations...)

@@ -6,6 +6,7 @@ import Login from "./components/auth/Login";
 import Register from "./components/auth/Register";
 import ForgetPassword from "./components/auth/ForgetPassword";
 import ResetPassword from "./components/auth/ResetPassword";
+import ClearSession from "./components/auth/ClearSession";
 
 // ADMIN
 import AdminDashboard from "./components/admin/AdminDashboard";
@@ -14,6 +15,7 @@ import RegisterCenter from "./components/admin/RegisterCenter";
 import AdminMessages from "./components/admin/AdminMessages";
 
 // CENTER
+import CenterGuard from "./components/center/CenterGuard";
 import CenterDashboard from "./components/center/CenterDashboard";
 import CenterManagement from "./components/center/CenterManagement";
 import CenterProfile from "./components/center/CenterProfile";
@@ -42,7 +44,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<ClearSession><Login /></ClearSession>} />
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -54,14 +56,14 @@ function App() {
         <Route path="/admin/register-center" element={<RegisterCenter />} />
         <Route path="/admin/messages" element={<AdminMessages />} />
 
-        <Route path="/center/dashboard" element={<CenterDashboard />} />
-        <Route path="/center/management" element={<CenterManagement />} />
-        <Route path="/center/center-profile" element={<CenterProfile />} />
-        <Route path="/center/add-treatment" element={<AddTreatment />} />
-        <Route path="/center/edit-treatment" element={<EditTretment />} />
-        <Route path="/center/management-appointment" element={<UpdateandCancelAppointment />} />
-        <Route path="/center/update-appointment" element={<UpdateAppointment />} />
-        <Route path="/center/appointment-refundApproval" element={<AppointmentRefundApproval />} />
+        <Route path="/center/dashboard" element={<CenterGuard><CenterDashboard /></CenterGuard>} />
+        <Route path="/center/management" element={<CenterGuard><CenterManagement /></CenterGuard>} />
+        <Route path="/center/center-profile" element={<CenterGuard><CenterProfile /></CenterGuard>} />
+        <Route path="/center/add-treatment" element={<CenterGuard><AddTreatment /></CenterGuard>} />
+        <Route path="/center/edit-treatment" element={<CenterGuard><EditTretment /></CenterGuard>} />
+        <Route path="/center/management-appointment" element={<CenterGuard><UpdateandCancelAppointment /></CenterGuard>} />
+        <Route path="/center/update-appointment" element={<CenterGuard><UpdateAppointment /></CenterGuard>} />
+        <Route path="/center/appointment-refundApproval" element={<CenterGuard><AppointmentRefundApproval /></CenterGuard>} />
 
         <Route path="/customer/update-profile" element={<UpdateUserProfile />} />
         <Route path="/customer/centers" element={<ViewCenters />} />
