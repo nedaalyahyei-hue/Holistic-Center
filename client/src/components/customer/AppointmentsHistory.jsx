@@ -19,6 +19,7 @@ export default function AppointmentsHistory() {
   const [refundSaving, setRefundSaving] = useState(false);
   const [refundError, setRefundError] = useState("");
   const [refundSuccess, setRefundSuccess] = useState("");
+  const [refunds, setRefunds] = useState([]);
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
@@ -44,8 +45,27 @@ export default function AppointmentsHistory() {
     }
   };
 
+  const loadRefunds = async () => {
+    if (!user?.email) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3002/refunds/customer/${encodeURIComponent(user.email)}`
+      );
+
+      const data = await response.json();
+
+      if (data.message === "success") {
+        setRefunds(data.refunds || []);
+      }
+    } catch (err) {
+      console.error("Error loading refunds:", err);
+    }
+  };
+
   useEffect(() => {
     loadBookings();
+    loadRefunds();
   }, []);
 
   const startEdit = (booking) => {
@@ -147,6 +167,7 @@ export default function AppointmentsHistory() {
       }
 
       setRefundSuccess("Cancel & Refund request submitted successfully.");
+      await loadRefunds();
       setRefundingId(null);
       setRefundReason("");
     } catch (err) {
@@ -177,7 +198,20 @@ export default function AppointmentsHistory() {
                 <p>Date: {booking.date}</p>
                 <p>Time: {booking.slotStart || booking.time || "N/A"}</p>
                 <p>Price: <span>{booking.price} OMR</span></p>
-                <p>Status: {booking.status}</p>
+                {refunds
+                  .filter((refund) => {
+                    const bookingId =
+                      typeof refund.bookingId === "object"
+                        ? refund.bookingId?._id
+                        : refund.bookingId;
+
+                    return String(bookingId) === String(booking._id);
+                  })
+                  .map((refund) => (
+                    <p key={refund._id}>
+                      Refund Status: <strong>{refund.status}</strong>
+                    </p>
+                  ))}
               </div>
 
               {editingId === booking._id ? (
@@ -257,8 +291,20 @@ export default function AppointmentsHistory() {
                   </button>
 
 
+
                   <button
                     className="history-btn"
+                    disabled={refunds.some((refund) => {
+                      const bookingId =
+                        typeof refund.bookingId === "object"
+                          ? refund.bookingId?._id
+                          : refund.bookingId;
+
+                      return (
+                        String(bookingId) === String(booking._id) &&
+                        refund.status?.toLowerCase() === "pending"
+                      );
+                    })}
                     onClick={() => {
                       setRefundingId(booking._id);
                       setRefundReason("");
@@ -266,8 +312,21 @@ export default function AppointmentsHistory() {
                       setRefundSuccess("");
                     }}
                   >
-                    Request Cancel & Refund
+                    {refunds.some((refund) => {
+                      const bookingId =
+                        typeof refund.bookingId === "object"
+                          ? refund.bookingId?._id
+                          : refund.bookingId;
+
+                      return (
+                        String(bookingId) === String(booking._id) &&
+                        refund.status?.toLowerCase() === "pending"
+                      );
+                    })
+                      ? "Cancel & Refund Request Pending"
+                      : "Request Cancel & Refund"}
                   </button>
+
 
                   {refundingId === booking._id && (
                     <div className="history-card history-edit-card">
