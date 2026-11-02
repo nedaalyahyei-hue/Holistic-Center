@@ -1,10 +1,31 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import CustomerLayout from "./CustomerLayout";
 import { FaPhoneAlt } from "react-icons/fa";
 import { MdEmail } from "react-icons/md";
 import "./Customer.css";
 
 export default function Contact() {
+
+  const [centers, setCenters] = useState([]);
+  const [selectedCenterId, setSelectedCenterId] = useState("");
+
+  useEffect(() => {
+    fetch("http://localhost:3002/customer/centers")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.message === "success") {
+          setCenters(data.centers || []);
+        }
+      })
+      .catch((error) => console.error("Error loading centers:", error));
+  }, []);
+
+  const selectedCenter = centers.find(
+    (center) => center._id === selectedCenterId
+  );
+
+  console.log("Selected Center:", selectedCenter);
+
   return (
     <CustomerLayout>
       <div className="contact-content">
@@ -14,11 +35,37 @@ export default function Contact() {
         </p>
 
         <div className="contact-card">
+
+          <div className="contact-select">
+            <label htmlFor="centerSelect">Select Center</label>
+
+            <select
+              id="centerSelect"
+              value={selectedCenterId}
+              onChange={(e) => setSelectedCenterId(e.target.value)}
+            >
+              <option value="">Choose a center</option>
+
+              {centers.map((center) => (
+                <option key={center._id} value={center._id}>
+                  {center.centerName}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="contact-row">
             <div className="contact-icon">
               <FaPhoneAlt />
             </div>
-            <p>Contact: +96899558654</p>
+            {selectedCenter && (
+              <p>
+                Contact:{" "}
+                <a href={`tel:${selectedCenter.phone}`}>
+                  {selectedCenter.phone}
+                </a>
+              </p>
+            )}
           </div>
 
           <div className="contact-line"></div>
@@ -27,7 +74,13 @@ export default function Contact() {
             <div className="contact-icon">
               <MdEmail />
             </div>
-            <p>customerservice@holisticcenter.com</p>
+            {selectedCenter && (
+              <p>
+                <a href={`mailto:${selectedCenter.email}`}>
+                  {selectedCenter.email}
+                </a>
+              </p>
+            )}
           </div>
         </div>
       </div>

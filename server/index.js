@@ -1277,6 +1277,7 @@ function mergeCenter(center, user) {
 
   return {
     ...c,
+    email: user.email || c.email,
     phone: user.phone || c.phone,
     image: user.image || c.image,
     description: user.description || "",
