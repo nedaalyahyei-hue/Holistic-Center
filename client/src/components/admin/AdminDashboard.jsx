@@ -19,6 +19,14 @@ export default function AdminDashboard() {
   const [monthlyUsers, setMonthlyUsers] = useState([]);
   const [monthlyCenters, setMonthlyCenters] = useState([]);
 
+  const [monthlyBookings, setMonthlyBookings] = useState([]);
+  const [bookingMonth, setBookingMonth] = useState(
+    new Date().getMonth() + 1
+  );
+  const [bookingYear, setBookingYear] = useState(
+    new Date().getFullYear()
+  );
+
   useEffect(() => {
     const fetchCenters = async () => {
       try {
@@ -30,17 +38,19 @@ export default function AdminDashboard() {
 
         const data = await res.json();
 
+
         setCenters(
           data.map((center) => ({
             id: center._id,
             name: center.centerName,
             img: center.image,
             location: center.location,
-            date: "",
-            email: "",
-            phone: "",
+            date: center.createdAt || "",
+            email: center.email || "",
+            phone: center.phone || "",
           }))
         );
+
       } catch (error) {
         console.error("Error fetching centers:", error);
       }
@@ -128,6 +138,27 @@ export default function AdminDashboard() {
     fetchMonthlyUsers();
   }, []);
 
+  useEffect(() => {
+    const fetchMonthlyBookings = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:3002/admin/bookings/monthly?month=${bookingMonth}&year=${bookingYear}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch monthly bookings");
+        }
+
+        const data = await response.json();
+        setMonthlyBookings(data);
+      } catch (error) {
+        console.error("Error fetching monthly bookings:", error);
+      }
+    };
+
+    fetchMonthlyBookings();
+  }, [bookingMonth, bookingYear]);
+
   const bookingsData = [
     { id: 1, userEmail: "ahmed.balushi@example.com", date: "15 May 2026", time: "10:00 AM", center: "Abna Freish Center" },
     { id: 2, userEmail: "sara.riyami@example.com", date: "16 May 2026", time: "11:30 AM", center: "Muscat Hijama Center" },
@@ -135,9 +166,12 @@ export default function AdminDashboard() {
   ];
 
   const sortedCenters = [...centers].sort((a, b) => {
+    const dateA = new Date(a.date).getTime() || 0;
+    const dateB = new Date(b.date).getTime() || 0;
+
     return sortOrder === "newest"
-      ? new Date(b.date) - new Date(a.date)
-      : new Date(a.date) - new Date(b.date);
+      ? dateB - dateA
+      : dateA - dateB;
   });
 
   return (
@@ -149,7 +183,18 @@ export default function AdminDashboard() {
             <span className="menu-text">Menu</span>
           </div>
           <div className="topbar-center">
-            <span className="nav-item active" onClick={() => navigate("/admin/dashboard")}>Dashboard</span>
+            <span
+              className="nav-item active"
+              onClick={() => {
+                setActiveCard("");
+                document.querySelector(".content-wrapper")?.scrollTo({
+                  top: 0,
+                  behavior: "smooth",
+                });
+              }}
+            >
+              Dashboard
+            </span>
             <span className="nav-item" onClick={() => navigate("/admin/management")}>Admin Management</span>
           </div>
           <div className="topbar-right">
@@ -164,7 +209,16 @@ export default function AdminDashboard() {
         <div className="layout">
           <div className={`sidebar ${open ? "open" : ""}`}>
             <div className="sidebar-content">
-              <div className="sidebar-item active" onClick={() => navigate("/admin/dashboard")}>
+              <div
+                className="sidebar-item active"
+                onClick={() => {
+                  setActiveCard("");
+                  document.querySelector(".content-wrapper")?.scrollTo({
+                    top: 0,
+                    behavior: "smooth",
+                  });
+                }}
+              >
                 Dashboard
               </div>
 
@@ -217,7 +271,7 @@ export default function AdminDashboard() {
               >
                 <FaPlus className="card-icon" />
                 <p>Total Booking Per Center</p>
-                <h3>{bookingsData.length}</h3>
+                <h3>{monthlyBookings.reduce((sum, center) => sum + center.total, 0)}</h3>
               </div>
             </div>
 
@@ -231,8 +285,8 @@ export default function AdminDashboard() {
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value)}
                   >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
+                    <option value="newest">Sort by Newest</option>
+                    <option value="oldest">Sort by Oldest</option>
                   </select>
                 </div>
                 <div className="records-grid">
@@ -277,53 +331,6 @@ export default function AdminDashboard() {
                 >
                   Monthly Registered Users
                 </h2>
-
-                <div style={{ width: "100%", height: 320 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={monthlyUsers.filter((item) => item.month !== "Unknown Date")}
-                      margin={{ top: 20, right: 30, left: 0, bottom: 10 }}
-                      barCategoryGap="45%"
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 5"
-                        vertical={false}
-                        stroke="#E8EDE9"
-                      />
-
-                      <XAxis
-                        dataKey="month"
-                        tick={{ fill: "#64756B", fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-
-                      <YAxis
-                        allowDecimals={false}
-                        tick={{ fill: "#64756B", fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-
-                      <Tooltip
-                        cursor={{ fill: "#F3F7F4" }}
-                        contentStyle={{
-                          borderRadius: "12px",
-                          border: "1px solid #E8EDE9",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                        }}
-                      />
-
-                      <Bar
-                        dataKey="total"
-                        name="Registered Users"
-                        fill="#79A99D"
-                        radius={[8, 8, 0, 0]}
-                        maxBarSize={65}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
               </div>
             )}
 
@@ -341,35 +348,49 @@ export default function AdminDashboard() {
                   Total Booking Per Center
                 </h2>
 
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "25px" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ padding: "15px", textAlign: "left", borderBottom: "1px solid #ddd" }}>
-                        Total Bookings
-                      </th>
-                      <th style={{ padding: "15px", textAlign: "right", borderBottom: "1px solid #ddd" }}>
-                        Center Name
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {[
-                      { name: "Center A", total: 5 },
-                      { name: "Center B", total: 3 },
-                      { name: "Center C", total: 2 },
-                    ].map((center) => (
-                      <tr key={center.name}>
-                        <td style={{ padding: "15px", borderBottom: "1px solid #eee" }}>
-                          {center.total}
-                        </td>
-                        <td style={{ padding: "15px", textAlign: "right", borderBottom: "1px solid #eee" }}>
-                          {center.name}
-                        </td>
-                      </tr>
+                <div style={{ display: "flex", gap: "15px", justifyContent: "center", margin: "20px 0" }}>
+                  <select
+                    value={bookingMonth}
+                    onChange={(e) => setBookingMonth(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(2026, i, 1).toLocaleString("en-US", { month: "long" })}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+
+                  <select
+                    value={bookingYear}
+                    onChange={(e) => setBookingYear(Number(e.target.value))}
+                  >
+                    {[2025, 2026, 2027, 2028].map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ width: "100%", height: 400 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={monthlyBookings}
+                      margin={{ top: 20, right: 20, left: 25, bottom: 50 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="centerName"
+                        angle={-35}
+                        textAnchor="end"
+                        interval={0}
+                        height={110}
+                        tick={{ fontSize: 11 }}
+                      />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="total" name="Total Bookings" fill="#79A99D" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
           </div>

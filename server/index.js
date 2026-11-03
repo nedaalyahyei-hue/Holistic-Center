@@ -314,6 +314,55 @@ app.get("/admin/centers", async (req, res) => {
   }
 });
 
+
+// Get monthly bookings per center
+app.get("/admin/bookings/monthly", async (req, res) => {
+  try {
+    const { month, year } = req.query;
+
+    if (!month || !year) {
+      return res.status(400).json({
+        message: "Month and year are required",
+      });
+    }
+
+    const monthNumber = String(month).padStart(2, "0");
+    const datePrefix = `${year}-${monthNumber}-`;
+
+    const bookings = await BookingModel.find({
+      date: { $regex: `^${datePrefix}` },
+    });
+
+    const centers = await CenterModel.find({});
+
+    const result = await Promise.all(
+      centers.map(async (center) => {
+        const centerUser = await findCenterUser(center);
+
+        const total = centerUser
+          ? bookings.filter(
+              (booking) =>
+                booking.centerId.toString() === centerUser._id.toString()
+            ).length
+          : 0;
+
+        return {
+          centerId: center._id,
+          centerName: center.centerName,
+          total,
+        };
+      })
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error("Monthly Bookings Error:", error);
+    res.status(500).json({
+      message: "Failed to fetch monthly bookings",
+    });
+  }
+});
+
 // Update Center Name
 app.put("/admin/centers/:id", async (req, res) => {
   try {
@@ -471,6 +520,24 @@ app.put("/messages/read/:customerId", async (req, res) => {
       {
         customerId: req.params.customerId,
         sender: "user",
+        isRead: { $ne: true },
+      },
+      { $set: { isRead: true } }
+    );
+
+    res.send({ message: "success" });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+});
+
+// Mark Admin Messages as Read by Customer
+app.put("/messages/read-admin/:customerId", async (req, res) => {
+  try {
+    await MessageModel.updateMany(
+      {
+        customerId: req.params.customerId,
+        sender: "admin",
         isRead: { $ne: true },
       },
       { $set: { isRead: true } }

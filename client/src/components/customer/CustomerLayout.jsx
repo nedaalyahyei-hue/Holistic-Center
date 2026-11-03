@@ -9,6 +9,7 @@ import "./Customer.css";
 
 export default function CustomerLayout({ children }) {
   const [open, setOpen] = useState(true);
+  const [unreadAdminMessages, setUnreadAdminMessages] = useState(0);
 
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("customerDarkMode") === "true"
@@ -19,6 +20,46 @@ export default function CustomerLayout({ children }) {
   useEffect(() => {
     localStorage.setItem("customerDarkMode", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const fetchUnreadMessages = async () => {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+
+      if (!user?._id) return;
+
+      try {
+        const res = await fetch("http://localhost:3002/messages");
+        const data = await res.json();
+
+        if (data.message === "success") {
+          const unread = data.messages.filter(
+            (msg) =>
+              msg.customerId === user._id &&
+              msg.sender === "admin" &&
+              !msg.isRead
+          );
+
+          setUnreadAdminMessages(unread.length);
+        }
+      } catch (error) {
+        console.error("Error fetching unread messages:", error);
+      }
+    };
+
+    fetchUnreadMessages();
+
+    const handleMessagesRead = () => {
+      setUnreadAdminMessages(0);
+    };
+
+    window.addEventListener("adminMessagesRead", handleMessagesRead);
+    const interval = setInterval(fetchUnreadMessages, 5000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("adminMessagesRead", handleMessagesRead);
+    };
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -89,9 +130,37 @@ export default function CustomerLayout({ children }) {
             <Link to="/customer/dashboard">Dashboard</Link>
             <Link to="/customer/history">Booking History</Link>
             <Link to="/customer/chatbot">Chatbot</Link>
-            <Link to="/customer/contact">Contact With Centers</Link>
-            <Link to="/customer/contact-admin">Contact With Admin</Link>
-            
+            <Link to="/customer/contact">Centers Contact</Link>
+            <Link
+              to="/customer/contact-admin"
+              onClick={() => setUnreadAdminMessages(0)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
+                fontSize: "18px",
+              }}
+            >
+              Messages With Admin
+
+              {unreadAdminMessages > 0 && (
+                <span
+                  style={{
+                    backgroundColor: "#e74c3c",
+                    color: "white",
+                    borderRadius: "50%",
+                    padding: "4px 8px",
+                    flexShrink: 0,
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {unreadAdminMessages}
+                </span>
+              )}
+            </Link>
+
 
             <div className="logout-link" onClick={logout}>
               Logout

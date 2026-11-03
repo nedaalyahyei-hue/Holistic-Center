@@ -20,6 +20,25 @@ export default function ContactAdmin() {
                     );
 
                     setMessages(userMessages);
+
+                    // Mark unread admin messages as read
+                    const hasUnreadAdminMessages = userMessages.some(
+                        (msg) => msg.sender === "admin" && !msg.isRead
+                    );
+
+                    if (hasUnreadAdminMessages) {
+                        fetch(`http://localhost:3002/messages/read-admin/${user._id}`, {
+                            method: "PUT",
+                        })
+                            .then((res) => res.json())
+                            .then((result) => {
+                                console.log("Mark admin messages as read:", result);
+                                if (result.message === "success") {
+                                    window.dispatchEvent(new Event("adminMessagesRead"));
+                                }
+                            })
+                            .catch((error) => console.error(error));
+                    }
                 }
             })
             .catch((error) => console.error(error));
