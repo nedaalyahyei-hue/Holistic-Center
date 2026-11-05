@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./Auth.css";
 
 const ForgetPassword = () => {
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
+    const navigate = useNavigate();
 
 
     const handleSubmit = async (e) => {
@@ -29,6 +30,9 @@ const ForgetPassword = () => {
             console.log("Server response:", result);
 
             setMessage(result.message);
+            if (result.message === "Reset code sent successfully") {
+                navigate("/reset-password/verify", { state: { email } });
+            }
         } catch (error) {
             console.log("Frontend error:", error);
             setMessage("Server Error");

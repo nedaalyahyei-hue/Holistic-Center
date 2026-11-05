@@ -17,13 +17,17 @@ export default function BookingConfirmation() {
   const confirmBooking = async () => {
     if (saving) return;
 
-    const user = JSON.parse(localStorage.getItem("user") || "null");
+   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-    if (!user?.email) {
-      alert("Please login first");
-      return;
-    }
+if (!user?.email) {
+  setError("Please login first to book an appointment.");
 
+  setTimeout(() => {
+    navigate("/login");
+  }, 7000);
+
+  return;
+}
     if (!treatmentId || !date || !slotStart) {
       setError("Booking details are missing.");
       return;
