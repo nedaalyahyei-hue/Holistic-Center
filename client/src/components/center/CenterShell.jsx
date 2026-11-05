@@ -1,41 +1,181 @@
-import React, { useState } from "react";
-import { FaBars, FaMoon, FaSun } from "react-icons/fa";
-import { MdLanguage, MdAccountCircle } from "react-icons/md";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { FaBars, FaMoon, FaSun, FaUserMd } from "react-icons/fa";
+import {
+  MdLanguage, MdAccountCircle, MdPerson, MdDashboard, MdMedicalServices,
+  MdEventAvailable, MdHistory, MdAddCircle, MdEdit, MdExpandMore,
+} from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "./centerLang";
+import logoImg from "../../assets/logo.png";
+import "./CenterShell.css";
 
-// Sidebar order (Add / Edit Treatment are opened from the Management page)
-const ITEMS = [
-  ["dashboard", "/center/dashboard"],
-  ["profile", "/center/center-profile"],
-  ["doctors", "/center/doctors"],
-  ["management", "/center/management"],
-  ["managementAppointments", "/center/management-appointment"],
-  ["refundRequests", "/center/appointment-refundApproval"],
-];
+const SIDEBAR_W = 270;
+const NARROW = 900;
+const STORE_KEY = "centerSidebarOpen";
 
-// These pages keep the Management item highlighted
-const ALIAS = { addTreatment: "management", editTreatment: "management" };
+// pages that belong to the "Center Treatment" group
+const GROUP_PAGES = ["management", "editTreatment", "addTreatment"];
 
-// Shared layout for all center pages: topbar, sidebar, dark mode and language button
+const isNarrowNow = () => typeof window !== "undefined" && window.innerWidth <= NARROW;
+
+const readOpen = () => {
+  if (isNarrowNow()) return false;
+  try {
+    return localStorage.getItem(STORE_KEY) !== "0";
+  } catch (error) {
+    return true;
+  }
+};
+
+// Shared layout for all center pages: topbar, fixed side menu, dark mode and language button
 export default function CenterShell({ active, children }) {
   const navigate = useNavigate();
   const { lang, t, toggleLang } = useLang();
-  const [open, setOpen] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const isAr = lang === "ar";
 
-  const current = ALIAS[active] || active;
+  const [darkMode, setDarkMode] = useState(false);
+  const [narrow, setNarrow] = useState(isNarrowNow);
+  const [open, setOpen] = useState(readOpen);
+
+  const groupActive = GROUP_PAGES.includes(active);
+  const [treatOpen, setTreatOpen] = useState(groupActive);
+
+  // switching between a small and a big screen
+  useEffect(() => {
+    let wasNarrow = isNarrowNow();
+    const onResize = () => {
+      const now = isNarrowNow();
+      if (now !== wasNarrow) {
+        wasNarrow = now;
+        setNarrow(now);
+        setOpen(now ? false : readOpen());
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const toggleSidebar = () => {
+    const next = !open;
+    setOpen(next);
+    if (!narrow) {
+      try {
+        localStorage.setItem(STORE_KEY, next ? "1" : "0");
+      } catch (error) {
+        /* ignore */
+      }
+    }
+  };
+
+  const go = (path) => {
+    if (narrow) setOpen(false);
+    navigate(path);
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("user");
+    } catch (error) {
+      /* ignore */
+    }
+    navigate("/");
+  };
+
+  // the page content and the topbar make room for the menu while it is open
+  const shift = open && !narrow ? SIDEBAR_W : 0;
+  const shiftStyle = {
+    marginLeft: isAr ? 0 : shift,
+    marginRight: isAr ? shift : 0,
+    width: shift ? `calc(100% - ${shift}px)` : "100%",
+    boxSizing: "border-box",
+    transition: "margin 0.3s ease, width 0.3s ease",
+  };
+
+  const renderItem = (key, icon, label, isActive, onClick, isChild) => (
+    <div
+      key={key}
+      className={`cs-item ${isChild ? "cs-child" : ""} ${isActive ? "cs-active" : ""}`}
+      onClick={onClick}
+    >
+      <span className="cs-icon">{icon}</span>
+      <span className="cs-label">{label}</span>
+    </div>
+  );
+
+  // opens a page, unless we are already on it
+  const open_ = (pageKey, path) => (active === pageKey ? undefined : () => go(path));
+
+  const sidebar = (
+    <>
+      {narrow && open && <div className="cs-backdrop" onClick={() => setOpen(false)} />}
+
+      <aside
+        className={`cs-sidebar ${isAr ? "cs-rtl" : "cs-ltr"} ${open ? "" : "cs-closed"} ${darkMode ? "cs-dark" : ""}`}
+        dir={isAr ? "rtl" : "ltr"}
+        aria-hidden={!open}
+      >
+        <div className="cs-brand" onClick={() => go("/center/dashboard")}>
+          <img src={logoImg} alt="HCS" />
+        </div>
+
+        <nav className="cs-menu">
+          {renderItem("profile", <MdPerson />, t("profile"),
+            active === "profile", open_("profile", "/center/center-profile"))}
+
+          {renderItem("dashboard", <MdDashboard />, t("dashboard"),
+            active === "dashboard", open_("dashboard", "/center/dashboard"))}
+
+          {/* Center Treatment group: Edit / Delete and Add */}
+          <div
+            className={`cs-item ${groupActive ? "cs-active-parent" : ""}`}
+            onClick={() => setTreatOpen(!treatOpen)}
+          >
+            <span className="cs-icon"><MdMedicalServices /></span>
+            <span className="cs-label">{t("centerTreatment")}</span>
+            <MdExpandMore className={`cs-chev ${treatOpen ? "cs-chev-open" : ""}`} />
+          </div>
+
+          <div className={`cs-sub ${treatOpen ? "cs-sub-open" : ""}`}>
+            {renderItem("treatList", <MdEdit />, t("treatmentsList"),
+              active === "management" || active === "editTreatment",
+              open_("management", "/center/management"), true)}
+
+            {renderItem("treatAdd", <MdAddCircle />, t("addTreatment"),
+              active === "addTreatment",
+              open_("addTreatment", "/center/add-treatment"), true)}
+          </div>
+
+          {renderItem("appointments", <MdEventAvailable />, t("managementAppointments"),
+            active === "managementAppointments",
+            open_("managementAppointments", "/center/management-appointment"))}
+
+          {renderItem("refunds", <MdHistory />, t("refundRequests"),
+            active === "refundRequests",
+            open_("refundRequests", "/center/appointment-refundApproval"))}
+
+          {renderItem("doctors", <FaUserMd />, t("doctors"),
+            active === "doctors", open_("doctors", "/center/doctors"))}
+        </nav>
+
+        <div className="cs-logout" onClick={handleLogout}>
+          <IoLogOutOutline size={22} />
+          <span>{t("logout")}</span>
+        </div>
+      </aside>
+    </>
+  );
 
   return (
     <div
       className={`center-page ${darkMode ? "dark" : ""}`}
-      dir={lang === "ar" ? "rtl" : "ltr"}
+      dir={isAr ? "rtl" : "ltr"}
     >
       <div className="center-overlay">
-        <div className="topbar">
+        <div className="topbar" style={shiftStyle}>
           <div className="topbar-left">
-            <button className="icon-btn" onClick={() => setOpen(!open)}><FaBars /></button>
+            <button className="icon-btn" onClick={toggleSidebar}><FaBars /></button>
             <button
               className="icon-btn profile-nav-btn"
               onClick={() => navigate("/center/center-profile")}
@@ -65,27 +205,12 @@ export default function CenterShell({ active, children }) {
         </div>
 
         <div className="layout">
-          <div className={`sidebar ${open ? "open" : ""}`}>
-            <div className="sidebar-content">
-              {ITEMS.map(([key, path]) => (
-                <div
-                  key={key}
-                  className={`sidebar-item ${current === key ? "active" : ""}`}
-                  onClick={active === key ? undefined : () => navigate(path)}
-                >
-                  {t(key)}
-                </div>
-              ))}
-            </div>
-
-            <div className="sidebar-logout" onClick={() => navigate("/")}>
-              <IoLogOutOutline size={20} /> {t("logout")}
-            </div>
-          </div>
-
-          <div className="content-wrapper">{children}</div>
+          <div className="content-wrapper" style={shiftStyle}>{children}</div>
         </div>
       </div>
+
+      {/* drawn outside the page so it always stays fixed to the screen */}
+      {createPortal(sidebar, document.body)}
     </div>
   );
 }
