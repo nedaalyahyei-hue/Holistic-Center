@@ -6,6 +6,7 @@ import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
+import { slotsProblem } from "./slotUtils";
 
 export default function EditTretment() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function EditTretment() {
   const [slots, setSlots] = useState(
     oldTreatment?.slots?.length
       ? oldTreatment.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }))
-      : [{ start: "09:00", end: "09:45", doctor: "" }]
+      : [{ start: "09:00", end: "", doctor: "" }]
   );
 
   // If the page is opened without choosing a treatment, go back to Management
@@ -44,6 +45,12 @@ export default function EditTretment() {
 
     if (workDays.length === 0) {
       alert(t("selectDay"));
+      return;
+    }
+
+    const problem = slotsProblem(slots, Number(treatment.duration));
+    if (problem) {
+      alert(t(problem));
       return;
     }
 
@@ -144,6 +151,7 @@ export default function EditTretment() {
           setWorkDays={setWorkDays}
           slots={slots}
           setSlots={setSlots}
+          duration={Number(treatment.duration)}
         />
 
         <div className="form-actions" style={{ display: "flex", gap: "15px" }}>

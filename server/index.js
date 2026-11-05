@@ -687,8 +687,14 @@ app.get("/search-centers", async (req, res) => {
 });
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const MIN_GAP = 5; // minutes between two slots of the same treatment
 
-function checkSlots(slots) {
+const toMin = (time) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+
+function checkSlots(slots, duration) {
   if (!Array.isArray(slots) || slots.length === 0) return "Add at least one time slot";
 
   for (const s of slots) {
@@ -706,6 +712,25 @@ function checkSlots(slots) {
       }
     }
   }
+
+  // every slot is exactly as long as the treatment
+  const dur = Number(duration);
+  if (Number.isFinite(dur) && dur > 0) {
+    for (const s of slots) {
+      if (toMin(s.end) - toMin(s.start) !== dur) {
+        return "Slot length must match the treatment duration";
+      }
+    }
+  }
+
+  // at least MIN_GAP minutes between any two slots of the treatment
+  const sorted = [...slots].sort((a, b) => toMin(a.start) - toMin(b.start));
+  for (let i = 1; i < sorted.length; i++) {
+    if (toMin(sorted[i].start) - toMin(sorted[i - 1].end) < MIN_GAP) {
+      return "Time slots must be at least 5 minutes apart";
+    }
+  }
+
   return null;
 }
 
@@ -724,7 +749,7 @@ async function checkDoctors(centerId, slots) {
 
 app.post("/treatments", async (req, res) => {
   try {
-    const err = checkSlots(req.body.slots);
+    const err = checkSlots(req.body.slots, req.body.duration);
     if (err) return res.send({ message: err });
 
     const doctorErr = await checkDoctors(req.body.centerId, req.body.slots);
@@ -761,16 +786,26 @@ app.get("/treatments/:id", async (req, res) => {
 
 app.put("/treatments/:id", async (req, res) => {
   try {
-    if (req.body.slots !== undefined) {
-      const err = checkSlots(req.body.slots);
+    const existing = await TreatmentModel.findById(req.params.id);
+    if (!existing) return res.send({ message: "Treatment not found" });
+
+    // the schedule rules are checked whenever the slots or the duration change
+    if (req.body.slots !== undefined || req.body.duration !== undefined) {
+      const slots =
+        req.body.slots !== undefined
+          ? req.body.slots
+          : existing.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }));
+      const duration = req.body.duration !== undefined ? req.body.duration : existing.duration;
+
+      const err = checkSlots(slots, duration);
       if (err) return res.send({ message: err });
 
-      const existing = await TreatmentModel.findById(req.params.id);
-      if (!existing) return res.send({ message: "Treatment not found" });
-
-      const doctorErr = await checkDoctors(existing.centerId, req.body.slots);
-      if (doctorErr) return res.send({ message: doctorErr });
+      if (req.body.slots !== undefined) {
+        const doctorErr = await checkDoctors(existing.centerId, req.body.slots);
+        if (doctorErr) return res.send({ message: doctorErr });
+      }
     }
+
     const treatment = await TreatmentModel.findByIdAndUpdate(
       req.params.id,
       req.body,
