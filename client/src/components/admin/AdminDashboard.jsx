@@ -232,6 +232,12 @@ export default function AdminDashboard() {
 
               <div
                 className="sidebar-item"
+                onClick={() => navigate("/admin/treatments")}
+              >
+                Treatment Management
+              </div>
+              <div
+                className="sidebar-item"
                 onClick={() => navigate("/admin/messages")}
               >
                 Messages

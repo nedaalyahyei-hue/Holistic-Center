@@ -13,7 +13,7 @@ import AdminDashboard from "./components/admin/AdminDashboard";
 import AdminManagement from "./components/admin/AdminManagement";
 import RegisterCenter from "./components/admin/RegisterCenter";
 import AdminMessages from "./components/admin/AdminMessages";
-
+import TreatmentManagement from "./components/admin/TreatmentManagement";
 // CENTER
 import CenterGuard from "./components/center/CenterGuard";
 import CenterDashboard from "./components/center/CenterDashboard";
@@ -56,7 +56,8 @@ function App() {
         <Route path="/admin/management" element={<AdminManagement />} />
         <Route path="/admin/register-center" element={<RegisterCenter />} />
         <Route path="/admin/messages" element={<AdminMessages />} />
-
+        <Route path="/admin/treatments" element={<TreatmentManagement />}/>
+        
         <Route path="/center/dashboard" element={<CenterGuard><CenterDashboard /></CenterGuard>} />
         <Route path="/center/management" element={<CenterGuard><CenterManagement /></CenterGuard>} />
         <Route path="/center/center-profile" element={<CenterGuard><CenterProfile /></CenterGuard>} />
