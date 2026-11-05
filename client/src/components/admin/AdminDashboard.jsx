@@ -17,6 +17,15 @@ export default function AdminDashboard() {
   const [totalCustomers, setTotalCustomers] = useState(0);
   const [usersData, setUsersData] = useState([]);
   const [monthlyUsers, setMonthlyUsers] = useState([]);
+
+  const [userMonth, setUserMonth] = useState(
+    new Date().getMonth() + 1
+  );
+
+  const [userYear, setUserYear] = useState(
+    new Date().getFullYear()
+  );
+
   const [monthlyCenters, setMonthlyCenters] = useState([]);
 
   const [monthlyBookings, setMonthlyBookings] = useState([]);
@@ -337,6 +346,61 @@ export default function AdminDashboard() {
                 >
                   Monthly Registered Users
                 </h2>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "15px",
+                    justifyContent: "center",
+                    margin: "20px 0",
+                  }}
+                >
+                  <select
+                    value={userMonth}
+                    onChange={(e) => setUserMonth(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(2026, i, 1).toLocaleString("en-US", {
+                          month: "long",
+                        })}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={userYear}
+                    onChange={(e) => setUserYear(Number(e.target.value))}
+                  >
+                    {[2025, 2026, 2027, 2028].map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ width: "100%", height: 350 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={monthlyUsers.filter((item) => {
+                        const [year, month] = item.month.split("-").map(Number);
+
+                        return year === userYear && month === userMonth;
+                      })}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar
+                        dataKey="total"
+                        name="Registered Users"
+                        fill="#76a37b"
+                        radius={[8, 8, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
 

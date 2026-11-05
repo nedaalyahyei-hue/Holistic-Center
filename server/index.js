@@ -777,14 +777,14 @@ app.put("/admin/treatments/:id", async (req, res) => {
     await treatment.save();
 
     await TreatmentModel.updateMany(
-  {
-    masterTreatmentId: treatment._id,
-    isMaster: false,
-  },
-  {
-    $set: { name: name },
-  }
-);
+      {
+        masterTreatmentId: treatment._id,
+        isMaster: false,
+      },
+      {
+        $set: { name: name },
+      }
+    );
 
     res.send({ message: "success", treatment });
   } catch (error) {
