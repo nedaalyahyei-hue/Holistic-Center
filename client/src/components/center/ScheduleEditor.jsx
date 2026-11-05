@@ -1,8 +1,27 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLang } from "./centerLang";
 
 export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots }) {
+  const navigate = useNavigate();
   const { t } = useLang();
+
+  const [doctors, setDoctors] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  // the center's registered doctors
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user) return;
+
+    fetch(`http://localhost:3002/doctors/center/${user._id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.message === "success") setDoctors(data.doctors);
+      })
+      .catch((error) => console.log(error))
+      .finally(() => setLoaded(true));
+  }, []);
 
   const toggleDay = (d) => {
     setWorkDays(workDays.includes(d) ? workDays.filter((x) => x !== d) : [...workDays, d]);
@@ -41,6 +60,33 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots 
 
       <label className="card-label">{t("dailySlots", { n: slots.length })}</label>
 
+      {loaded && doctors.length === 0 && (
+        <div style={{
+          border: "2px solid #e67e22",
+          borderRadius: "10px",
+          padding: "12px",
+          marginBottom: "10px",
+          color: "#b9650f",
+        }}>
+          <p style={{ marginBottom: "8px" }}>{t("noDoctorsForSlots")}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/center/doctors")}
+            style={{
+              background: "#76a37b",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              padding: "8px 14px",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            {t("goAddDoctors")}
+          </button>
+        </div>
+      )}
+
       {slots.map((s, i) => (
         <div key={i} style={{
           display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap",
@@ -51,9 +97,22 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots 
           <span>{t("to")}</span>
           <input type="time" className="styled-input" style={{ flex: 1, minWidth: 110 }}
             value={s.end} onChange={(e) => updateSlot(i, "end", e.target.value)} />
-          <input type="text" className="styled-input" style={{ flex: 2, minWidth: 140 }}
-            placeholder={t("doctorName")} value={s.doctor}
-            onChange={(e) => updateSlot(i, "doctor", e.target.value)} />
+
+          <select
+            className="styled-input"
+            style={{ flex: 2, minWidth: 140 }}
+            value={s.doctor}
+            onChange={(e) => updateSlot(i, "doctor", e.target.value)}
+          >
+            <option value="">{t("selectDoctor")}</option>
+            {doctors.map((d) => (
+              <option key={d._id} value={d.name}>{d.name}</option>
+            ))}
+            {loaded && s.doctor && !doctors.some((d) => d.name === s.doctor) && (
+              <option value={s.doctor}>{s.doctor} ({t("notRegistered")})</option>
+            )}
+          </select>
+
           <button type="button" onClick={() => removeSlot(i)}
             style={{ background: "none", border: "none", color: "#c0392b", fontWeight: "bold", cursor: "pointer" }}>
             {t("remove")}

@@ -24,6 +24,7 @@ import EditTretment from "./components/center/EditTreatment";
 import UpdateandCancelAppointment from "./components/center/UpdateandCancelAppointment";
 import UpdateAppointment from "./components/center/UpdateAppointment";
 import AppointmentRefundApproval from "./components/center/AppointmentRefundApprovel";
+import Doctors from "./components/center/Doctors";
 
 
 // CUSTOMER
@@ -64,6 +65,7 @@ function App() {
         <Route path="/center/management-appointment" element={<CenterGuard><UpdateandCancelAppointment /></CenterGuard>} />
         <Route path="/center/update-appointment" element={<CenterGuard><UpdateAppointment /></CenterGuard>} />
         <Route path="/center/appointment-refundApproval" element={<CenterGuard><AppointmentRefundApproval /></CenterGuard>} />
+        <Route path="/center/doctors" element={<CenterGuard><Doctors /></CenterGuard>} />
 
         <Route path="/customer/update-profile" element={<UpdateUserProfile />} />
         <Route path="/customer/centers" element={<ViewCenters />} />

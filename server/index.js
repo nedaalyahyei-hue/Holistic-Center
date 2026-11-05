@@ -549,6 +549,95 @@ app.put("/messages/read-admin/:customerId", async (req, res) => {
   }
 });
 
+// ================= Doctor =================
+const DoctorSchema = new mongoose.Schema(
+  {
+    // centerId = the _id of the center's login account in the USER collection
+    centerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+      required: true,
+    },
+    name: { type: String, required: true, trim: true },
+    nameKey: { type: String, required: true }, // lower case name, blocks duplicates
+    specialty: { type: String, trim: true, default: "" },
+  },
+  { timestamps: true }
+);
+
+// the same doctor name cannot be registered twice in one center
+DoctorSchema.index({ centerId: 1, nameKey: 1 }, { unique: true });
+
+const DoctorModel = mongoose.model("DOCTOR", DoctorSchema, "DOCTOR");
+
+// Add a doctor to a center
+app.post("/doctors", async (req, res) => {
+  try {
+    const { centerId, name, specialty } = req.body;
+
+    if (!mongoose.isValidObjectId(centerId)) return res.send({ message: "Invalid center" });
+
+    const cleanName = (name || "").replace(/\s+/g, " ").trim();
+    if (!cleanName) return res.send({ message: "Doctor name is required" });
+
+    const center = await UserModel.findOne({ _id: centerId, role: "center" });
+    if (!center) return res.send({ message: "Center not found" });
+
+    const doctor = await DoctorModel.create({
+      centerId,
+      name: cleanName,
+      nameKey: cleanName.toLowerCase(),
+      specialty: (specialty || "").trim(),
+    });
+
+    res.send({ message: "success", doctor });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.send({ message: "This doctor is already registered" });
+    }
+    res.send({ message: "Add Doctor Error: " + error.message });
+  }
+});
+
+// Doctors of one center
+app.get("/doctors/center/:centerId", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.centerId)) {
+      return res.send({ message: "Invalid center" });
+    }
+    const doctors = await DoctorModel.find({ centerId: req.params.centerId }).sort({ name: 1 });
+    res.send({ message: "success", doctors });
+  } catch (error) {
+    res.send({ message: "Get Doctors Error: " + error.message });
+  }
+});
+
+// Delete a doctor: /doctors/:id?centerId=...
+app.delete("/doctors/:id", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.send({ message: "Doctor not found" });
+
+    const doctor = await DoctorModel.findById(req.params.id);
+    if (!doctor) return res.send({ message: "Doctor not found" });
+
+    if (!req.query.centerId || String(doctor.centerId) !== String(req.query.centerId)) {
+      return res.send({ message: "Doctor not found" });
+    }
+
+    // a doctor used in a treatment schedule cannot be deleted
+    const used = await TreatmentModel.exists({
+      centerId: doctor.centerId,
+      "slots.doctor": doctor.name,
+    });
+    if (used) return res.send({ message: "This doctor is used in a treatment schedule" });
+
+    await DoctorModel.findByIdAndDelete(doctor._id);
+    res.send({ message: "success" });
+  } catch (error) {
+    res.send({ message: "Delete Doctor Error: " + error.message });
+  }
+});
+
 // ================= Treatment =================
 const TreatmentSchema = new mongoose.Schema(
   {
@@ -620,10 +709,26 @@ function checkSlots(slots) {
   return null;
 }
 
+// every doctor in the slots must be registered in the same center
+async function checkDoctors(centerId, slots) {
+  if (!mongoose.isValidObjectId(centerId)) return "Invalid center";
+
+  const doctors = await DoctorModel.find({ centerId }).select("name");
+  const names = new Set(doctors.map((d) => d.name));
+
+  for (const s of slots) {
+    if (!names.has(s.doctor.trim())) return "Choose a doctor from your registered doctors";
+  }
+  return null;
+}
+
 app.post("/treatments", async (req, res) => {
   try {
     const err = checkSlots(req.body.slots);
     if (err) return res.send({ message: err });
+
+    const doctorErr = await checkDoctors(req.body.centerId, req.body.slots);
+    if (doctorErr) return res.send({ message: doctorErr });
 
     const treatment = new TreatmentModel(req.body);
     await treatment.save();
@@ -659,6 +764,12 @@ app.put("/treatments/:id", async (req, res) => {
     if (req.body.slots !== undefined) {
       const err = checkSlots(req.body.slots);
       if (err) return res.send({ message: err });
+
+      const existing = await TreatmentModel.findById(req.params.id);
+      if (!existing) return res.send({ message: "Treatment not found" });
+
+      const doctorErr = await checkDoctors(existing.centerId, req.body.slots);
+      if (doctorErr) return res.send({ message: doctorErr });
     }
     const treatment = await TreatmentModel.findByIdAndUpdate(
       req.params.id,
@@ -908,6 +1019,7 @@ app.get("/bookings/customer/:email", async (req, res) => {
 });
 
 // Center asks the customer for permission (edit or cancel)
+// (the center pages no longer use this: permission is taken by phone outside the website)
 app.put("/bookings/:id/request-change", async (req, res) => {
   try {
     const { type } = req.body;
@@ -943,14 +1055,16 @@ app.put("/bookings/:id/respond", async (req, res) => {
   }
 });
 
-// Change the booking date (only if the customer approved an edit)
+// Center changes the booking date.
+// The customer's permission is taken by phone (outside the website),
+// so the server only checks that the booking belongs to the center that asks.
 app.put("/bookings/:id/date", async (req, res) => {
   try {
     const booking = await BookingModel.findById(req.params.id);
     if (!booking) return res.send({ message: "Booking not found" });
 
-    if (booking.changeType !== "edit" || booking.changeStatus !== "approved") {
-      return res.send({ message: "Customer approval required" });
+    if (!req.body.centerId || String(booking.centerId) !== String(req.body.centerId)) {
+      return res.send({ message: "This booking does not belong to your center" });
     }
 
     // validate the new date
@@ -986,14 +1100,15 @@ app.put("/bookings/:id/date", async (req, res) => {
   }
 });
 
-// Cancel (delete) the booking (only if the customer approved a cancel)
+// Center cancels (deletes) a booking: /bookings/:id?centerId=...
+// The customer's permission is taken by phone (outside the website).
 app.delete("/bookings/:id", async (req, res) => {
   try {
     const booking = await BookingModel.findById(req.params.id);
     if (!booking) return res.send({ message: "Booking not found" });
 
-    if (booking.changeType !== "cancel" || booking.changeStatus !== "approved") {
-      return res.send({ message: "Customer approval required" });
+    if (!req.query.centerId || String(booking.centerId) !== String(req.query.centerId)) {
+      return res.send({ message: "This booking does not belong to your center" });
     }
 
     await BookingModel.findByIdAndDelete(req.params.id);

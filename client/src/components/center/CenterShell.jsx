@@ -5,15 +5,18 @@ import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "./centerLang";
 
+// Sidebar order (Add / Edit Treatment are opened from the Management page)
 const ITEMS = [
-  ["profile", "/center/center-profile"],
   ["dashboard", "/center/dashboard"],
+  ["profile", "/center/center-profile"],
+  ["doctors", "/center/doctors"],
   ["management", "/center/management"],
-  ["refundRequests", "/center/appointment-refundApproval"],
-  ["addTreatment", "/center/add-treatment"],
-  ["editTreatment", "/center/edit-treatment"],
   ["managementAppointments", "/center/management-appointment"],
+  ["refundRequests", "/center/appointment-refundApproval"],
 ];
+
+// These pages keep the Management item highlighted
+const ALIAS = { addTreatment: "management", editTreatment: "management" };
 
 // Shared layout for all center pages: topbar, sidebar, dark mode and language button
 export default function CenterShell({ active, children }) {
@@ -21,6 +24,8 @@ export default function CenterShell({ active, children }) {
   const { lang, t, toggleLang } = useLang();
   const [open, setOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+
+  const current = ALIAS[active] || active;
 
   return (
     <div
@@ -65,7 +70,7 @@ export default function CenterShell({ active, children }) {
               {ITEMS.map(([key, path]) => (
                 <div
                   key={key}
-                  className={`sidebar-item ${active === key ? "active" : ""}`}
+                  className={`sidebar-item ${current === key ? "active" : ""}`}
                   onClick={active === key ? undefined : () => navigate(path)}
                 >
                   {t(key)}

@@ -14,6 +14,8 @@ export default function UpdateandCancelAppointment() {
   const { t, ts } = useLang();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  // booking id -> true once the center confirms the customer's permission by phone (design only)
+  const [phoneOk, setPhoneOk] = useState({});
 
   const user = JSON.parse(localStorage.getItem("user"));
 
@@ -37,42 +39,18 @@ export default function UpdateandCancelAppointment() {
     loadAppointments();
   }, []);
 
-  const replaceBooking = (updated) =>
-    setAppointments((prev) => prev.map((a) => (a._id === updated._id ? updated : a)));
-
-  const requestChange = async (appt, type) => {
-    const typeText = type === "edit" ? t("typeEdit") : t("typeCancel");
-    if (!window.confirm(t("confirmRequest", { type: typeText, name: appt.customerName }))) return;
-    try {
-      const res = await fetch(`${API}/bookings/${appt._id}/request-change`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
-      });
-      const result = await res.json();
-      if (result.message === "success") replaceBooking(result.booking);
-      else alert(ts(result.message));
-    } catch (error) {
-      alert(t("serverError"));
-    }
-  };
+  const togglePhone = (id) => setPhoneOk((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const handleEdit = (appt) => {
-    const approved = appt.changeStatus === "approved" && appt.changeType === "edit";
-    if (approved) {
-      navigate("/center/update-appointment", { state: { appointment: appt } });
-    } else {
-      requestChange(appt, "edit");
-    }
+    navigate("/center/update-appointment", { state: { appointment: appt } });
   };
 
   const handleCancel = async (appt) => {
-    const approved = appt.changeStatus === "approved" && appt.changeType === "cancel";
-    if (!approved) return requestChange(appt, "cancel");
-
     if (!window.confirm(t("confirmCancelAppt"))) return;
     try {
-      const res = await fetch(`${API}/bookings/${appt._id}`, { method: "DELETE" });
+      const res = await fetch(`${API}/bookings/${appt._id}?centerId=${user._id}`, {
+        method: "DELETE",
+      });
       const result = await res.json();
       if (result.message === "success") {
         setAppointments(appointments.filter((a) => a._id !== appt._id));
@@ -82,21 +60,6 @@ export default function UpdateandCancelAppointment() {
     } catch (error) {
       alert(t("serverError"));
     }
-  };
-
-  const statusText = (a) => {
-    const typeText = a.changeType === "cancel" ? t("typeCancel") : t("typeEdit");
-    if (a.changeStatus === "pending") return t("statusWaiting", { type: typeText });
-    if (a.changeStatus === "approved") return t("statusApproved", { type: typeText });
-    if (a.changeStatus === "rejected") return t("statusRejected");
-    return t("statusNone");
-  };
-
-  const statusColor = (a) => {
-    if (a.changeStatus === "approved") return "#2e7d32";
-    if (a.changeStatus === "rejected") return "#c0392b";
-    if (a.changeStatus === "pending") return "#e67e22";
-    return "#777";
   };
 
   return (
@@ -121,10 +84,7 @@ export default function UpdateandCancelAppointment() {
         )}
 
         {appointments.map((appt) => {
-          const pending = appt.changeStatus === "pending";
-          const approved = appt.changeStatus === "approved";
-          const approvedEdit = approved && appt.changeType === "edit";
-          const approvedCancel = approved && appt.changeType === "cancel";
+          const allowed = !!phoneOk[appt._id];
 
           return (
             <div key={appt._id} className="form-box appointment-card">
@@ -155,44 +115,55 @@ export default function UpdateandCancelAppointment() {
                   <label><FaClock /> {t("timeLbl")}</label>
                   <p>{appt.time}</p>
                 </div>
+                {appt.doctor && (
+                  <div className="detail-item">
+                    <label><MdAccountCircle /> {t("doctorLbl")}</label>
+                    <p>{appt.doctor}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Customer permission box */}
-              <div style={{
-                margin: "15px 0",
-                padding: "12px 15px",
-                border: `2px solid ${statusColor(appt)}`,
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}>
-                <input type="checkbox" checked={approved} disabled
-                  style={{ width: 20, height: 20 }} />
+              {/* The customer's permission is taken by phone, outside the website */}
+              <label
+                style={{
+                  margin: "15px 0",
+                  padding: "12px 15px",
+                  border: `2px solid ${allowed ? "#2e7d32" : "#bbb"}`,
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={allowed}
+                  onChange={() => togglePhone(appt._id)}
+                  style={{ width: 20, height: 20 }}
+                />
                 <div>
-                  <strong>{t("customerApproval")}</strong>
-                  <div style={{ color: statusColor(appt), fontSize: "14px" }}>
-                    {statusText(appt)}
-                  </div>
+                  <strong>{t("phonePermission")}</strong>
+                  <div style={{ color: "#777", fontSize: "14px" }}>{t("phoneHint")}</div>
                 </div>
-              </div>
+              </label>
 
               <div className="form-actions card-btns">
                 <button
                   className="save-btn edit-btn"
-                  disabled={pending || (approved && !approvedEdit)}
-                  style={{ opacity: pending || (approved && !approvedEdit) ? 0.5 : 1 }}
+                  disabled={!allowed}
+                  style={{ opacity: allowed ? 1 : 0.5 }}
                   onClick={() => handleEdit(appt)}
                 >
-                  <FaEdit /> {approvedEdit ? t("edit") : t("reqEdit")}
+                  <FaEdit /> {t("edit")}
                 </button>
                 <button
                   className="save-btn cancel-btn"
-                  disabled={pending || (approved && !approvedCancel)}
-                  style={{ opacity: pending || (approved && !approvedCancel) ? 0.5 : 1 }}
+                  disabled={!allowed}
+                  style={{ opacity: allowed ? 1 : 0.5 }}
                   onClick={() => handleCancel(appt)}
                 >
-                  <FaTimesCircle /> {approvedCancel ? t("cancel") : t("reqCancel")}
+                  <FaTimesCircle /> {t("cancel")}
                 </button>
               </div>
             </div>
