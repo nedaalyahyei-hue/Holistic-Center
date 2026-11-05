@@ -357,9 +357,9 @@ app.get("/admin/bookings/monthly", async (req, res) => {
 
         const total = centerUser
           ? bookings.filter(
-              (booking) =>
-                booking.centerId.toString() === centerUser._id.toString()
-            ).length
+            (booking) =>
+              booking.centerId.toString() === centerUser._id.toString()
+          ).length
           : 0;
 
         return {
@@ -657,9 +657,21 @@ app.delete("/doctors/:id", async (req, res) => {
 // ================= Treatment =================
 const TreatmentSchema = new mongoose.Schema(
   {
+    isMaster: { type: Boolean, default: false },
+    masterTreatmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TREATMENT",
+      default: null,
+    },
     name: { type: String, required: true },
-    price: { type: Number, required: true },
-    duration: { type: Number, required: true },
+    price: {
+      type: Number,
+      required: function () { return !this.isMaster; },
+    },
+    duration: {
+      type: Number,
+      required: function () { return !this.isMaster; },
+    },
     location: String,
     category: String,
     image: String,
@@ -676,13 +688,113 @@ const TreatmentSchema = new mongoose.Schema(
     centerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "USER",
-      required: true,
+      required: function () { return !this.isMaster; },
     },
   },
   { timestamps: true }
 );
 
 const TreatmentModel = mongoose.model("TREATMENT", TreatmentSchema, "TREATMENT");
+// Get Admin Treatment List
+app.get("/admin/treatments", async (req, res) => {
+  try {
+    const treatments = await TreatmentModel.find({
+      isMaster: true,
+    }).sort({ name: 1 });
+
+    res.send({ message: "success", treatments });
+  } catch (error) {
+    res.status(500).send({
+      message: "Get Admin Treatments Error: " + error.message,
+    });
+  }
+});
+
+
+// Admin - Add Treatment
+app.post("/admin/treatments", async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+
+    if (!name) {
+      return res.send({ message: "Treatment name is required" });
+    }
+
+    const existing = await TreatmentModel.findOne({
+      isMaster: true,
+      name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+    });
+
+    if (existing) {
+      return res.send({ message: "Treatment already exists" });
+    }
+
+    const treatment = await TreatmentModel.create({
+      name,
+      isMaster: true,
+    });
+
+    res.send({ message: "success", treatment });
+  } catch (error) {
+    res.status(500).send({
+      message: "Add Treatment Error: " + error.message,
+    });
+  }
+});
+
+// Admin - Edit Treatment
+app.put("/admin/treatments/:id", async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+
+    if (!name) {
+      return res.send({ message: "Treatment name is required" });
+    }
+
+    const treatment = await TreatmentModel.findOne({
+      _id: req.params.id,
+      isMaster: true,
+    });
+
+    if (!treatment) {
+      return res.send({ message: "Treatment not found" });
+    }
+
+    const existing = await TreatmentModel.findOne({
+      isMaster: true,
+      _id: { $ne: treatment._id },
+      name: {
+        $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        $options: "i",
+      },
+    });
+
+    if (existing) {
+      return res.send({ message: "Treatment already exists" });
+    }
+
+    treatment.name = name;
+    await treatment.save();
+
+    await TreatmentModel.updateMany(
+  {
+    masterTreatmentId: treatment._id,
+    isMaster: false,
+  },
+  {
+    $set: { name: name },
+  }
+);
+
+    res.send({ message: "success", treatment });
+  } catch (error) {
+    res.status(500).send({
+      message: "Edit Treatment Error: " + error.message,
+    });
+  }
+});
+
+
 // Search centers by center name or treatment name
 app.get("/search-centers", async (req, res) => {
   try {
@@ -967,7 +1079,7 @@ app.post("/bookings", async (req, res) => {
 });
 
 
- // Customer edits booking date and time
+// Customer edits booking date and time
 app.put("/bookings/:id/customer-edit", async (req, res) => {
   try {
     const { customerEmail, date, slotStart } = req.body;
@@ -989,8 +1101,8 @@ app.put("/bookings/:id/customer-edit", async (req, res) => {
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") ||
-        !Number.isFinite(Date.parse(date + "T00:00:00Z")) ||
-        new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) {
+      !Number.isFinite(Date.parse(date + "T00:00:00Z")) ||
+      new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) {
       return res.status(400).json({ message: "Invalid date" });
     }
 
@@ -1566,9 +1678,9 @@ app.get("/customer/centers/:centerId/treatments", async (req, res) => {
     // treatments are saved with the center's USER _id
     const treatments = user
       ? await TreatmentModel.find({
-          centerId: user._id,
-          "slots.0": { $exists: true },
-        }).sort({ createdAt: -1 })
+        centerId: user._id,
+        "slots.0": { $exists: true },
+      }).sort({ createdAt: -1 })
       : [];
 
     res.json({
