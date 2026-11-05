@@ -991,7 +991,13 @@ const BookingSchema = new mongoose.Schema(
 // One customer per treatment + date + slot (old bookings without a slot are ignored)
 BookingSchema.index(
   { treatmentId: 1, date: 1, slotStart: 1 },
-  { unique: true, partialFilterExpression: { slotStart: { $type: "string" } } }
+  {
+    unique: true,
+    partialFilterExpression: {
+      slotStart: { $type: "string" },
+      status: "confirmed",
+    },
+  }
 );
 
 const BookingModel = mongoose.model("BOOKING", BookingSchema, "BOOKING");
@@ -1012,7 +1018,11 @@ app.get("/treatments/:id/availability/:date", async (req, res) => {
       return res.send({ message: "success", open: false, slots: [] });
     }
 
-    const booked = await BookingModel.find({ treatmentId: id, date }).select("slotStart");
+    const booked = await BookingModel.find({
+      treatmentId: id,
+      date,
+      status: { $ne: "cancelled" },
+    }).select("slotStart");
     const bookedSet = new Set(booked.map((b) => b.slotStart));
 
     const slots = [...treatment.slots]
@@ -1289,6 +1299,142 @@ app.delete("/bookings/:id", async (req, res) => {
   }
 });
 
+
+// ================= Feedback =================
+const FeedbackSchema = new mongoose.Schema(
+  {
+    rate: { type: String, required: true },
+    comment: { type: String, required: true },
+    appId: String,
+
+    bookingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BOOKING",
+    },
+    centerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+    },
+    customerName: String,
+    customerEmail: String,
+    treatmentName: String,
+  },
+  { timestamps: true }
+);
+
+FeedbackSchema.index(
+  { bookingId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      bookingId: { $type: "objectId" },
+    },
+  }
+);
+
+const FeedbackModel = mongoose.model(
+  "FEEDBACK",
+  FeedbackSchema,
+  "FEEDBACK"
+);
+
+
+
+ // Customer submits feedback
+app.post("/feedback", async (req, res) => {
+  try {
+    const { bookingId, customerEmail, rating, comment } = req.body;
+
+    if (!mongoose.isValidObjectId(bookingId)) {
+      return res.status(400).json({ message: "Invalid booking" });
+    }
+
+    const rate = Number(rating);
+
+    if (!Number.isInteger(rate) || rate < 1 || rate > 5) {
+      return res.status(400).json({ message: "Choose a rating from 1 to 5" });
+    }
+
+    if (typeof comment !== "string" || !comment.trim()) {
+      return res.status(400).json({ message: "Comment is required" });
+    }
+
+    const booking = await BookingModel.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (!customerEmail || booking.customerEmail !== customerEmail) {
+      return res.status(403).json({
+        message: "This booking does not belong to you",
+      });
+    }
+
+    const existingFeedback = await FeedbackModel.findOne({
+      bookingId: booking._id,
+    });
+
+    if (existingFeedback) {
+      return res.status(409).json({
+        message: "You have already reviewed this booking",
+      });
+    }
+
+    const feedback = await FeedbackModel.create({
+      bookingId: booking._id,
+      centerId: booking.centerId,
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      treatmentName: booking.treatmentName,
+      rate: String(rate),
+      comment: comment.trim(),
+    });
+
+    res.status(201).json({ message: "success", feedback });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "You have already reviewed this booking",
+      });
+    }
+
+    console.error("Feedback Error:", error);
+    res.status(500).json({ message: "Failed to submit feedback" });
+  }
+});
+
+
+
+ // Get feedback for one center
+app.get("/feedback/center/:centerId", async (req, res) => {
+  try {
+    const { centerId } = req.params;
+
+    if (!mongoose.isValidObjectId(centerId)) {
+      return res.status(400).json({
+        message: "Invalid center ID",
+      });
+    }
+
+    const feedbacks = await FeedbackModel.find({
+      centerId,
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      message: "success",
+      feedbacks,
+    });
+  } catch (error) {
+    console.error("Get Feedback Error:", error);
+    res.status(500).json({
+      message: "Failed to load feedback",
+    });
+  }
+});
+
+
+
 // ================= Refund =================
 const RefundSchema = new mongoose.Schema(
   {
@@ -1402,7 +1548,9 @@ app.put("/refunds/:id/decision", async (req, res) => {
 
     // approved: the booking is cancelled, so the time slot becomes free again
     if (approved) {
-      await BookingModel.findByIdAndDelete(refund.bookingId);
+      await BookingModel.findByIdAndUpdate(refund.bookingId, {
+        status: "cancelled",
+      });
     }
 
     // notify the customer
