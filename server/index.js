@@ -12,7 +12,8 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// images chosen from the device are saved as text, so the request body can be bigger
+app.use(express.json({ limit: "2mb" }));
 
 //added to make database work
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -24,6 +25,18 @@ mongoose
   .connect(conStr)
   .then(() => console.log("Database Connected..."))
   .catch((error) => console.log("Database Error: " + error));
+
+// An image is either empty, a web link, or a small picture saved as text (data URL)
+const MAX_IMAGE_CHARS = 700000;
+
+function checkImage(image) {
+  if (image === undefined || image === null || image === "") return null;
+  if (typeof image !== "string") return "Invalid image";
+  if (image.length > MAX_IMAGE_CHARS) return "Image is too large";
+  if (/^https?:\/\//i.test(image)) return null;
+  if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) return null;
+  return "Invalid image";
+}
 
 const UserSchema = new mongoose.Schema({
   username: String,
@@ -281,6 +294,9 @@ app.get("/center/:id", async (req, res) => {
 app.put("/center/:id", async (req, res) => {
   try {
     const { phone, image, description, locations } = req.body;
+
+    const imageErr = checkImage(image);
+    if (imageErr) return res.send({ message: imageErr });
 
     // keep only valid locations (name + link both filled)
     const cleanLocations = (locations || [])
@@ -749,6 +765,9 @@ async function checkDoctors(centerId, slots) {
 
 app.post("/treatments", async (req, res) => {
   try {
+    const imageErr = checkImage(req.body.image);
+    if (imageErr) return res.send({ message: imageErr });
+
     const err = checkSlots(req.body.slots, req.body.duration);
     if (err) return res.send({ message: err });
 
@@ -788,6 +807,11 @@ app.put("/treatments/:id", async (req, res) => {
   try {
     const existing = await TreatmentModel.findById(req.params.id);
     if (!existing) return res.send({ message: "Treatment not found" });
+
+    if (req.body.image !== undefined) {
+      const imageErr = checkImage(req.body.image);
+      if (imageErr) return res.send({ message: imageErr });
+    }
 
     // the schedule rules are checked whenever the slots or the duration change
     if (req.body.slots !== undefined || req.body.duration !== undefined) {
@@ -1559,7 +1583,14 @@ app.get("/customer/centers/:centerId/treatments", async (req, res) => {
   }
 });
 
-
+// Error handler: always answer with JSON (a request that is too big gets a clear message)
+app.use((err, req, res, next) => {
+  if (err && err.type === "entity.too.large") {
+    return res.send({ message: "Image is too large" });
+  }
+  console.error(err);
+  res.status(500).send({ message: "Server Error" });
+});
 
 app.listen(3002, () => {
   console.log("Server Connected...");

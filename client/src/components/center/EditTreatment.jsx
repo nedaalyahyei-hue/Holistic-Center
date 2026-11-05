@@ -4,6 +4,7 @@ import { FaEdit, FaSave } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
+import ImagePicker from "./ImagePicker";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import { slotsProblem } from "./slotUtils";
@@ -129,9 +130,12 @@ export default function EditTretment() {
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("imageLink")}</label>
-          <input type="text" name="image" className="styled-input"
-            placeholder="https://..." value={treatment.image} onChange={handleChange} />
+          <label className="card-label">{t("treatmentImage")}</label>
+          <ImagePicker
+            value={treatment.image}
+            onChange={(img) => setTreatment({ ...treatment, image: img })}
+            maxSide={800}
+          />
         </div>
 
         <div className="form-group">

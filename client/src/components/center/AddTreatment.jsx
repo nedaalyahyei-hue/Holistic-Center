@@ -3,6 +3,7 @@ import "./Center.css";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
+import ImagePicker from "./ImagePicker";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import { slotsProblem } from "./slotUtils";
@@ -116,9 +117,12 @@ export default function AddTreatment() {
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("imageLink")}</label>
-          <input type="text" name="image" className="styled-input"
-            placeholder="https://..." value={form.image} onChange={handleChange} />
+          <label className="card-label">{t("treatmentImage")}</label>
+          <ImagePicker
+            value={form.image}
+            onChange={(img) => setForm({ ...form, image: img })}
+            maxSide={800}
+          />
         </div>
 
         <div className="form-group">

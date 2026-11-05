@@ -3,6 +3,7 @@ import "./Center.css";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import CenterShell from "./CenterShell";
+import ImagePicker from "./ImagePicker";
 import { useLang } from "./centerLang";
 
 export default function CenterProfile() {
@@ -154,9 +155,13 @@ export default function CenterProfile() {
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("imageLink")}</label>
-          <input type="text" name="image" className="styled-input" value={center.image}
-            onChange={handleChange} placeholder="https://..." />
+          <label className="card-label">{t("centerImage")}</label>
+          <ImagePicker
+            value={center.image}
+            onChange={(img) => setCenter({ ...center, image: img })}
+            maxSide={500}
+            round
+          />
         </div>
 
         <div className="form-group">
