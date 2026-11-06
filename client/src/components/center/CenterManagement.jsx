@@ -77,7 +77,7 @@ export default function CenterManagement() {
 
         {treatments.map((tr) => (
           <div key={tr._id} className="category-row">
-            <span className="category-name">{tr.name} — {tr.price} {t("omr")}</span>
+            <span className="category-name">{tr.name}</span>
             <div className="action-buttons">
               <button
                 className="btn-dark"
@@ -96,7 +96,7 @@ export default function CenterManagement() {
       </div>
 
       <button className="add-category-btn" onClick={() => navigate("/center/add-treatment")}>
-        {t("addNewTreatment")}
+        {t("addTreatment")}
       </button>
     </CenterShell>
   );
