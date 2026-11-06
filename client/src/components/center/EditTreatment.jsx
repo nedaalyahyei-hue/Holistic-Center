@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
 import ImagePicker from "./ImagePicker";
+import CategorySelect from "./CategorySelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import { slotsProblem } from "./slotUtils";
@@ -20,7 +21,7 @@ export default function EditTretment() {
     price: oldTreatment?.price ?? "",
     duration: oldTreatment?.duration ?? "",
     location: oldTreatment?.location || "",
-    category: oldTreatment?.category || "Therapy",
+    category: oldTreatment?.category || "",
     image: oldTreatment?.image || "",
     description: oldTreatment?.description || "",
   });
@@ -43,6 +44,11 @@ export default function EditTretment() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!treatment.category) {
+      alert(t("selectCategory"));
+      return;
+    }
 
     if (workDays.length === 0) {
       alert(t("selectDay"));
@@ -121,12 +127,10 @@ export default function EditTretment() {
 
         <div className="form-group">
           <label className="card-label">{t("category")}</label>
-          <select name="category" className="styled-input"
-            value={treatment.category} onChange={handleChange}>
-            <option value="Therapy">{t("catTherapy")}</option>
-            <option value="Massage">{t("catMassage")}</option>
-            <option value="Hijama">{t("catHijama")}</option>
-          </select>
+          <CategorySelect
+            value={treatment.category}
+            onChange={(v) => setTreatment({ ...treatment, category: v })}
+          />
         </div>
 
         <div className="form-group">

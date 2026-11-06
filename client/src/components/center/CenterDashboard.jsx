@@ -4,7 +4,7 @@ import {
   MdOutlineCalendarMonth, MdOutlineReviews, MdMedicalServices,
   MdAccessTime, MdFilterList, MdTrendingUp, MdAttachMoney,
 } from "react-icons/md";
-import { FaUserAlt } from "react-icons/fa";
+import { FaUserAlt, FaStar } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -45,8 +45,35 @@ const tdStyle = {
   borderBottom: "1px solid #eee",
 };
 
-// ألوان مخصصة للخطوط الخاصة بالخدمات في المخطط البياني
+
 const SERVICE_COLORS = ["#79A99D", "#E07A5F", "#3D405B", "#81B29A", "#F4A261", "#2A9D8F"];
+
+
+const getReviewTime = (createdAt) => {
+  if (!createdAt) return "";
+
+  const now = new Date();
+  const reviewDate = new Date(createdAt);
+  const diff = now - reviewDate;
+
+  if (isNaN(reviewDate.getTime())) return "";
+
+  if (diff < 60000) return "الآن";
+
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(days / 365);
+
+  if (minutes < 60) return `Before ${minutes} minute`;
+  if (hours < 24) return `Before ${hours} hour`;
+  if (days === 1) return " Yesterday";
+  if (days < 30) return `Before ${days} days`;
+  if (months < 12) return ` ${months} Months ago`;
+  if (years === 1) return "A year ago";
+  return `${years} Years ago`;
+};
 
 export default function CenterDashboard() {
   const navigate = useNavigate();
@@ -54,6 +81,7 @@ export default function CenterDashboard() {
   const [activeCard, setActiveCard] = useState("");
 
   const [bookings, setBookings] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
 
   const [filterDate, setFilterDate] = useState("");
   const [showAllBookings, setShowAllBookings] = useState(false);
@@ -77,7 +105,25 @@ export default function CenterDashboard() {
       }
     };
 
+   
+    const loadFeedbacks = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3002/feedback/center/${user._id}`
+        );
+
+        const result = await res.json();
+
+        if (result.message === "success") {
+          setFeedbacks(result.feedbacks || []);
+        }
+      } catch (error) {
+        console.log("Load Feedbacks Error:", error);
+      }
+    };
+
     loadBookings();
+    loadFeedbacks();
   }, []);
 
   // Years available (always include current year)
@@ -124,7 +170,7 @@ export default function CenterDashboard() {
     };
   });
 
-  // تجهيز البيانات للمخطط الخطي (Line Chart) بحيث يكون كل شهر يحتوي على قيم الخدمات المختلفة
+
   const lineChartData = MONTH_KEYS.map((key, i) => {
     const item = { month: t(key) };
     monthlyTable.forEach((serv) => {
@@ -168,10 +214,14 @@ export default function CenterDashboard() {
           <h3>{bookings.length}</h3>
         </div>
 
-        <div className="card">
+        {/* Reviews Card */}
+        <div
+          className={`card clickable-card ${activeCard === "reviews" ? "active-card" : ""}`}
+          onClick={() => setActiveCard(activeCard === "reviews" ? "" : "reviews")}
+        >
           <MdOutlineReviews className="card-icon" />
           <p>{t("reviews")}</p>
-          <h3 style={{ fontSize: "18px" }}>{t("noReviews")}</h3>
+          <h3>{feedbacks.length}</h3>
         </div>
 
         <div
@@ -183,6 +233,153 @@ export default function CenterDashboard() {
           <h3>{allServicesCount}</h3>
         </div>
       </div> <br></br>
+
+      {/* Customer Reviews Section */}
+      {activeCard === "reviews" && (
+        <div className="output-section">
+          <div style={chartBox}>
+            <h2 style={chartTitle}>
+              Customer Reviews ({feedbacks.length})
+            </h2>
+
+            {feedbacks.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 15px",
+                  background: "#F5F8F5",
+                  borderRadius: "12px",
+                  color: "#64756B",
+                }}
+              >
+                <MdOutlineReviews size={45} color="#79A99D" />
+                <h3 style={{ color: "#34483D", marginBottom: "8px" }}>
+                  No Reviews Yet
+                </h3>
+                <p style={{ margin: 0 }}>
+                  Customer reviews will appear here once they are submitted.
+                </p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                  gap: "18px",
+                }}
+              >
+                {feedbacks.map((review) => (
+                  <div
+                    key={review._id}
+                    style={{
+                      background: "#ffffff",
+                      border: "1px solid #DCE8DF",
+                      borderLeft: "5px solid #79A99D",
+                      borderRadius: "14px",
+                      padding: "20px",
+                      boxShadow: "0 3px 12px rgba(0,0,0,0.06)",
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        paddingBottom: "14px",
+                        marginBottom: "14px",
+                        borderBottom: "1px solid #E8EDE9",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "9px",
+                            color: "#34483D",
+                            fontWeight: "700",
+                            fontSize: "16px",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          <FaUserAlt color="#79A99D" size={14} />
+                          {review.customerName || "Customer"}
+                        </div>
+
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            color: "#68766D",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {review.treatmentName || "Treatment"}
+                        </p>
+                      </div>
+
+                      <span
+                        style={{
+                          color: "#849187",
+                          fontSize: "12px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {getReviewTime(review.createdAt)}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        marginBottom: "14px",
+                      }}
+                    >
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <FaStar
+                          key={star}
+                          size={18}
+                          color={
+                            star <= Number(review.rate)
+                              ? "#F4B942"
+                              : "#DCE2DD"
+                          }
+                        />
+                      ))}
+
+                      <strong
+                        style={{
+                          color: "#34483D",
+                          marginLeft: "7px",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {review.rate}/5
+                      </strong>
+                    </div>
+
+                    <p
+                      style={{
+                        color: "#46554B",
+                        lineHeight: "1.8",
+                        fontSize: "14px",
+                        margin: 0,
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {review.comment}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {activeCard === "bookings" && (
         <div className="output-section">
@@ -471,7 +668,6 @@ export default function CenterDashboard() {
               <p style={{ textAlign: "center", marginTop: "20px" }}>{t("noDataYear")}</p>
             ) : (
               <>
-                {/* المخطط الخطي (Line Chart) المضاف حديثاً لعرض أداء الخدمات شهرياً */}
                 <div style={{ width: "100%", overflowX: "auto", marginTop: "25px", marginBottom: "35px" }} dir="ltr">
                   <div style={{ minWidth: "650px", height: 350 }}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -506,7 +702,7 @@ export default function CenterDashboard() {
                   </div>
                 </div>
 
-                {/* جدول التحليلات الشهري */}
+               
                 <div style={{ overflowX: "auto", marginTop: "20px" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
