@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./Admin.css";
 import { MdLanguage } from "react-icons/md";
-import { FaUsers, FaPlus, FaMoon, FaSun, FaBars, FaHome,FaRegUserCircle } from "react-icons/fa";
+import { FaUsers, FaPlus, FaMoon, FaSun, FaBars, FaHome, FaRegUserCircle } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, } from "recharts";
@@ -187,20 +187,20 @@ export default function AdminDashboard() {
     <div className={`admin-page ${darkMode ? "dark" : ""}`}>
       <div className="overlay">
         <div className="topbar">
-         <div className="topbar-left">
-  <button className="icon-btn" onClick={() => setOpen(!open)}>
-    <FaBars />
-  </button>
+          <div className="topbar-left">
+            <button className="icon-btn" onClick={() => setOpen(!open)}>
+              <FaBars />
+            </button>
 
-  <button
-    className="icon-btn"
-    onClick={() => navigate("/admin/profile")}
-    title="Admin Profile"
-    style={{ fontSize: "38px" }}
-  >
-    <FaRegUserCircle />
-  </button>
-</div>
+            <button
+              className="icon-btn"
+              onClick={() => navigate("/admin/profile")}
+              title="Admin Profile"
+              style={{ fontSize: "38px" }}
+            >
+              <FaRegUserCircle />
+            </button>
+          </div>
           <div className="topbar-center">
             <span
               className="nav-item active"

@@ -79,33 +79,43 @@ export default function AdminManagement() {
     }
   };
 
-  const handleRemoveCenter = async (center) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete ${center.centerName}?`
+  const handleBlockCenter = async (center) => {
+    const action = center.isBlocked ? "unblock" : "block";
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ${action} ${center.centerName}?`
     );
 
-    if (!confirmDelete) return;
+    if (!confirmed) return;
 
     try {
       const response = await fetch(
-        `http://localhost:3002/admin/centers/${center._id}`,
+        `http://localhost:3002/admin/centers/${center._id}/block`,
         {
-          method: "DELETE",
+          method: "PUT",
         }
       );
 
       const result = await response.json();
 
-      if (!response.ok) {
-        alert(result.message || "Failed to delete center");
+      if (!response.ok || result.message !== "success") {
+        alert(result.message || "Failed to update center status");
         return;
       }
 
       setCenters((prev) =>
-        prev.filter((item) => item._id !== center._id)
+        prev.map((item) =>
+          item._id === center._id
+            ? { ...item, isBlocked: result.isBlocked }
+            : item
+        )
       );
 
-      alert("Center deleted successfully!");
+      alert(
+        result.isBlocked
+          ? "Center blocked successfully!"
+          : "Center unblocked successfully!"
+      );
     } catch (error) {
       alert("Cannot connect to server");
     }
@@ -118,19 +128,19 @@ export default function AdminManagement() {
 
         <div className="topbar">
           <div className="topbar-left">
-  <button className="icon-btn" onClick={() => setOpen(!open)}>
-    <FaBars />
-  </button>
+            <button className="icon-btn" onClick={() => setOpen(!open)}>
+              <FaBars />
+            </button>
 
-  <button
-    className="icon-btn"
-    onClick={() => navigate("/admin/profile")}
-    title="Admin Profile"
-    style={{ fontSize: "38px" }}
-  >
-    <FaRegUserCircle />
-  </button>
-</div>
+            <button
+              className="icon-btn"
+              onClick={() => navigate("/admin/profile")}
+              title="Admin Profile"
+              style={{ fontSize: "38px" }}
+            >
+              <FaRegUserCircle />
+            </button>
+          </div>
           <div className="topbar-center">
             <span className="nav-item" onClick={() => navigate("/admin/dashboard")}>
               Dashboard
@@ -263,16 +273,16 @@ export default function AdminManagement() {
 
                         <button
                           type="button"
-                          onClick={() => handleRemoveCenter(center)}
+                          onClick={() => handleBlockCenter(center)}
                           style={{
-                            background: "#C75B52",
+                            background: center.isBlocked ? "#79A99D" : "#C75B52",
                             color: "white",
                             border: "none",
                             borderRadius: "8px",
                             padding: "10px 18px",
                           }}
                         >
-                          Delete
+                          {center.isBlocked ? "Unblock" : "Block"}
                         </button>
                       </td>
                     </tr>

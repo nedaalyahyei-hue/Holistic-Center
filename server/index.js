@@ -53,6 +53,11 @@ const UserSchema = new mongoose.Schema({
     default: "customer",
   },
 
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
+
   image: String,
   description: String,
   location: String,
@@ -170,6 +175,12 @@ app.post("/login", async (req, res) => {
       if (!isMatch) {
         return res.send({
           message: "Email or Password Invalid",
+        });
+      }
+
+      if (user.role === "center" && user.isBlocked === true) {
+        return res.send({
+          message: "Your account is blocked.",
         });
       }
 
@@ -333,7 +344,19 @@ app.put("/center/:id", async (req, res) => {
 app.get("/admin/centers", async (req, res) => {
   try {
     const centers = await CenterModel.find({});
-    res.status(200).json(centers);
+
+    const centersWithStatus = await Promise.all(
+      centers.map(async (center) => {
+        const user = await findCenterUser(center);
+
+        return {
+          ...center.toObject(),
+          isBlocked: user?.isBlocked === true,
+        };
+      })
+    );
+
+    res.status(200).json(centersWithStatus);
   } catch (error) {
     console.error("Get Centers Error:", error);
     res.status(500).json({
@@ -421,6 +444,44 @@ app.put("/admin/centers/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Failed to update center",
+    });
+  }
+});
+
+// Block / Unblock Center
+app.put("/admin/centers/:id/block", async (req, res) => {
+  try {
+    const center = await CenterModel.findById(req.params.id);
+
+    if (!center) {
+      return res.status(404).json({
+        message: "Center not found",
+      });
+    }
+
+    const user = await findCenterUser(center);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Center account not found",
+      });
+    }
+
+    const newStatus = user.isBlocked !== true;
+
+    await UserModel.updateOne(
+      { _id: user._id, role: "center" },
+      { $set: { isBlocked: newStatus } }
+    );
+
+    res.json({
+      message: "success",
+      isBlocked: newStatus,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update center status",
     });
   }
 });
@@ -1913,7 +1974,7 @@ app.put("/customer/profile/:id", async (req, res) => {
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 async function findCenterUser(center) {
-  const fields = "username email phone image description locations";
+  const fields = "username email phone image description locations isBlocked";
 
   if (center.email && center.email.trim()) {
     const byEmail = await UserModel.findOne({

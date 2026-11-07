@@ -95,22 +95,22 @@ export default function AdminMessages() {
       <div className="overlay">
         <div className="topbar">
           <div className="topbar-left">
-  <button
-    className="icon-btn"
-    onClick={() => setOpen(!open)}
-  >
-    <FaBars />
-  </button>
+            <button
+              className="icon-btn"
+              onClick={() => setOpen(!open)}
+            >
+              <FaBars />
+            </button>
 
-  <button
-    className="icon-btn"
-    onClick={() => navigate("/admin/profile")}
-    title="Admin Profile"
-    style={{ fontSize: "38px" }}
-  >
-    <FaRegUserCircle />
-  </button>
-</div>
+            <button
+              className="icon-btn"
+              onClick={() => navigate("/admin/profile")}
+              title="Admin Profile"
+              style={{ fontSize: "38px" }}
+            >
+              <FaRegUserCircle />
+            </button>
+          </div>
           <div className="topbar-center">
             <span
               className="nav-item"
