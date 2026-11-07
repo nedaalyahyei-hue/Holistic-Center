@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { FaEdit, FaTimesCircle, FaClock } from "react-icons/fa";
-import { MdAttachMoney, MdOutlineMedicalServices, MdEmail, MdAccountCircle } from "react-icons/md";
+import {
+  MdAttachMoney, MdOutlineMedicalServices, MdEmail, MdAccountCircle, MdEventAvailable,
+} from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import "./UpdateandCancelAppointment.css";
@@ -11,7 +13,7 @@ const API = "http://localhost:3002";
 
 export default function UpdateandCancelAppointment() {
   const navigate = useNavigate();
-  const { t, ts } = useLang();
+  const { t, ts, lang } = useLang();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   // booking id -> true once the center confirms the customer's permission by phone (design only)
@@ -40,6 +42,29 @@ export default function UpdateandCancelAppointment() {
   }, []);
 
   const togglePhone = (id) => setPhoneOk((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // When the booking was made: "Today, 10:30 AM" or "2026-11-02, 10:30 AM"
+  const formatMadeAt = (value) => {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const hour24 = d.getHours();
+    const hour12 = hour24 % 12 || 12;
+    const timeText = `${hour12}:${pad(d.getMinutes())} ${hour24 >= 12 ? t("pm") : t("am")}`;
+
+    const now = new Date();
+    const isToday =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+
+    const dayText = isToday
+      ? t("todayWord")
+      : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    return `${dayText}${lang === "ar" ? "، " : ", "}${timeText}`;
+  };
 
   const handleEdit = (appt) => {
     navigate("/center/update-appointment", { state: { appointment: appt } });
@@ -119,6 +144,12 @@ export default function UpdateandCancelAppointment() {
                   <div className="detail-item">
                     <label><MdAccountCircle /> {t("doctorLbl")}</label>
                     <p>{appt.doctor}</p>
+                  </div>
+                )}
+                {appt.createdAt && (
+                  <div className="detail-item">
+                    <label><MdEventAvailable /> {t("bookedOn")}</label>
+                    <p>{formatMadeAt(appt.createdAt)}</p>
                   </div>
                 )}
               </div>

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
 import ImagePicker from "./ImagePicker";
+import CategorySelect from "./CategorySelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import { slotsProblem } from "./slotUtils";
@@ -16,7 +17,7 @@ export default function AddTreatment() {
     name: "",
     price: "",
     duration: "",
-    category: "Therapy",
+    category: "",
     image: "",
     location: "",
     description: "",
@@ -36,6 +37,11 @@ export default function AddTreatment() {
     if (!user) {
       alert(t("loginFirst"));
       return navigate("/login");
+    }
+
+    if (!form.category) {
+      alert(t("selectCategory"));
+      return;
     }
 
     if (workDays.length === 0) {
@@ -108,12 +114,10 @@ export default function AddTreatment() {
 
         <div className="form-group">
           <label className="card-label">{t("category")}</label>
-          <select name="category" className="styled-input"
-            value={form.category} onChange={handleChange}>
-            <option value="Therapy">{t("catTherapy")}</option>
-            <option value="Massage">{t("catMassage")}</option>
-            <option value="Hijama">{t("catHijama")}</option>
-          </select>
+          <CategorySelect
+            value={form.category}
+            onChange={(v) => setForm({ ...form, category: v })}
+          />
         </div>
 
         <div className="form-group">
