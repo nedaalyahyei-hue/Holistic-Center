@@ -144,7 +144,7 @@ export default function UserDashboard() {
               boxShadow: "0 6px 20px rgba(0, 0, 0, 0.12)",
               maxWidth: "900px",
               height: "auto",
-minHeight: "0",
+              minHeight: "0",
               margin: "30px auto",
               boxSizing: "border-box",
             }}
