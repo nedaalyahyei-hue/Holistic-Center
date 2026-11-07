@@ -77,6 +77,52 @@ export default function AppointmentsHistory() {
     loadRefunds();
   }, []);
 
+
+  useEffect(() => {
+    const markRefundNotificationsRead = async () => {
+      if (!user?.email) return;
+
+      try {
+        const response = await fetch(
+          `http://localhost:3002/notifications/customer/${encodeURIComponent(user.email)}`
+        );
+
+        const data = await response.json();
+
+        if (data.message === "success") {
+          const unread = (data.notifications || []).filter(
+            (notification) =>
+              notification.type === "refund" &&
+              !notification.isRead
+          );
+
+          await Promise.all(
+            unread.map((notification) =>
+              fetch(
+                `http://localhost:3002/notifications/${notification._id}/read`,
+                { method: "PUT" }
+              ).then((res) => {
+                if (!res.ok) throw new Error("Failed to mark notification as read");
+                return res.json();
+              }).then((result) => {
+                if (result.message !== "success") {
+                  throw new Error("Failed to mark notification as read");
+                }
+              })
+            )
+          );
+
+          window.dispatchEvent(new Event("refundNotificationsRead"));
+        }
+      } catch (error) {
+        console.error("Error marking refund notifications as read:", error);
+      }
+    };
+
+    markRefundNotificationsRead();
+  }, []);
+
+
   const startEdit = (booking) => {
     setEditingId(booking._id);
     setEditDate(booking.date);
@@ -188,7 +234,15 @@ export default function AppointmentsHistory() {
 
 
   const submitReview = async () => {
-    if (!reviewingId || !reviewRating || !reviewComment.trim() || reviewSaving) {
+    if (reviewSaving || !reviewingId) return;
+
+    if (!reviewRating) {
+      setReviewError("Please select a star rating.");
+      return;
+    }
+
+    if (!reviewComment.trim()) {
+      setReviewError("Please write a review.");
       return;
     }
 
@@ -217,7 +271,7 @@ export default function AppointmentsHistory() {
         return;
       }
 
-      setReviewSuccess("Review submitted successfully!");
+      alert("Thank you for your review!");
       setReviewingId(null);
       setReviewRating(0);
       setReviewComment("");
@@ -474,7 +528,7 @@ export default function AppointmentsHistory() {
                     <div className="history-card-actions">
                       <button
                         className="history-btn"
-                        disabled={reviewSaving || !reviewRating || !reviewComment.trim()}
+                        disabled={reviewSaving}
                         onClick={submitReview}
                       >
                         {reviewSaving ? "Sending..." : "Send Review"}

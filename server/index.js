@@ -1695,6 +1695,80 @@ app.get("/admin/customers/monthly", async (req, res) => {
   }
 });
 
+// ================= Admin Profile =================
+
+// Get Admin Profile
+app.get("/admin/profile/:id", async (req, res) => {
+  try {
+    const admin = await UserModel.findOne({
+      _id: req.params.id,
+      role: "admin",
+    }).select("username email");
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    res.json({ message: "success", admin });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to load admin profile" });
+  }
+});
+
+// Update Admin Password
+app.put("/admin/profile/:id", async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        message: "All password fields are required",
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: "New passwords do not match",
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        message: "New password must be at least 8 characters",
+      });
+    }
+
+    const admin = await UserModel.findOne({
+      _id: req.params.id,
+      role: "admin",
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const isMatch = await bcrypt.compare(
+      currentPassword,
+      admin.password
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Current password is incorrect",
+      });
+    }
+
+    admin.password = await bcrypt.hash(newPassword, 10);
+    await admin.save();
+
+    res.json({ message: "success" });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update admin password",
+    });
+  }
+});
+
 
 // ================= Customer Profile =================
 

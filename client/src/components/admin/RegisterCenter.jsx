@@ -5,6 +5,8 @@ import { MdLanguage, MdDashboard } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import MessageNotification from "./MessageNotification";
+import CenterValidation from "../../validations/CenterValidation";
+import { FaRegUserCircle } from "react-icons/fa";
 
 export default function RegisterCenter() {
   const navigate = useNavigate();
@@ -21,22 +23,25 @@ export default function RegisterCenter() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+
   const handleRegister = async () => {
     setMessage("");
     setError("");
 
-    if (!name || !email || !phone || !password || !confirmPassword) {
-      setError("Please fill in all fields");
-      return;
-    }
-
-    if (!email.endsWith(".om")) {
-      setError("Email must end with .om");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+    // Validate center registration fields
+    try {
+      await CenterValidation.validate(
+        {
+          username: name,
+          email,
+          phone,
+          password,
+          confirmPassword,
+        },
+        { abortEarly: true }
+      );
+    } catch (validationError) {
+      setError(validationError.message);
       return;
     }
 
@@ -49,6 +54,7 @@ export default function RegisterCenter() {
 
     try {
       const token = localStorage.getItem("token");
+
       const response = await fetch("http://localhost:3002/register-center", {
         method: "POST",
         headers: {
@@ -59,6 +65,7 @@ export default function RegisterCenter() {
       });
 
       const result = await response.json();
+
       if (!response.ok || result.message !== "success") {
         setError(result.message || "Registration failed");
         return;
@@ -81,9 +88,19 @@ export default function RegisterCenter() {
       <div className="overlay">
         <div className="topbar">
           <div className="topbar-left">
-            <button className="icon-btn" onClick={() => setOpen(!open)}><FaBars /></button>
-            <span className="menu-text">Menu</span>
-          </div>
+  <button className="icon-btn" onClick={() => setOpen(!open)}>
+    <FaBars />
+  </button>
+
+  <button
+    className="icon-btn"
+    onClick={() => navigate("/admin/profile")}
+    title="Admin Profile"
+    style={{ fontSize: "38px" }}
+  >
+    <FaRegUserCircle />
+  </button>
+</div>
           <div className="topbar-center">
             <span
               className="nav-item"
@@ -128,6 +145,7 @@ export default function RegisterCenter() {
                 Messages
                 <MessageNotification />
               </div>
+              
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout

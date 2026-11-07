@@ -14,6 +14,8 @@ import AdminManagement from "./components/admin/AdminManagement";
 import RegisterCenter from "./components/admin/RegisterCenter";
 import AdminMessages from "./components/admin/AdminMessages";
 import TreatmentManagement from "./components/admin/TreatmentManagement";
+import AdminProfile from "./components/admin/AdminProfile";
+
 // CENTER
 import CenterGuard from "./components/center/CenterGuard";
 import CenterDashboard from "./components/center/CenterDashboard";
@@ -58,6 +60,7 @@ function App() {
         <Route path="/admin/register-center" element={<RegisterCenter />} />
         <Route path="/admin/messages" element={<AdminMessages />} />
         <Route path="/admin/treatments" element={<TreatmentManagement />}/>
+        <Route path="/admin/profile" element={<AdminProfile />} />
         
         <Route path="/center/dashboard" element={<CenterGuard><CenterDashboard /></CenterGuard>} />
         <Route path="/center/management" element={<CenterGuard><CenterManagement /></CenterGuard>} />

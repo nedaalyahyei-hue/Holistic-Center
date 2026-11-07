@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MdLanguage } from "react-icons/md";
-import { FaMoon, FaSun, FaBars, FaHome } from "react-icons/fa";
+import { FaMoon, FaSun, FaBars, FaHome, FaRegUserCircle } from "react-icons/fa";
 import { IoLogOutOutline } from "react-icons/io5";
 import MessageNotification from "./MessageNotification";
 import "./Admin.css";
@@ -109,7 +109,15 @@ export default function TreatmentManagement() {
             >
               <FaBars />
             </button>
-            <span className="menu-text">Menu</span>
+
+            <button
+              className="icon-btn"
+              onClick={() => navigate("/admin/profile")}
+              title="Admin Profile"
+              style={{ fontSize: "38px" }}
+            >
+              <FaRegUserCircle />
+            </button>
           </div>
 
           <div className="topbar-center">

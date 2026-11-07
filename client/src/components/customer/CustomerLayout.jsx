@@ -10,6 +10,7 @@ import "./Customer.css";
 export default function CustomerLayout({ children }) {
   const [open, setOpen] = useState(true);
   const [unreadAdminMessages, setUnreadAdminMessages] = useState(0);
+  const [unreadRefunds, setUnreadRefunds] = useState(0);
 
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("customerDarkMode") === "true"
@@ -60,6 +61,51 @@ export default function CustomerLayout({ children }) {
       window.removeEventListener("adminMessagesRead", handleMessagesRead);
     };
   }, []);
+
+
+  useEffect(() => {
+    const fetchRefundNotifications = async () => {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+
+      if (!user?.email) return;
+
+      try {
+        const response = await fetch(
+          `http://localhost:3002/notifications/customer/${encodeURIComponent(user.email)}`
+        );
+
+        const data = await response.json();
+
+        if (data.message === "success") {
+          const unread = (data.notifications || []).filter(
+            (notification) =>
+              notification.type === "refund" &&
+              !notification.isRead
+          );
+
+          setUnreadRefunds(unread.length);
+        }
+      } catch (error) {
+        console.error("Error fetching refund notifications:", error);
+      }
+    };
+
+    fetchRefundNotifications();
+
+    const interval = setInterval(fetchRefundNotifications, 5000);
+
+    const handleRefundsRead = () => {
+      setUnreadRefunds(0);
+    };
+
+    window.addEventListener("refundNotificationsRead", handleRefundsRead);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("refundNotificationsRead", handleRefundsRead);
+    };
+  }, []);
+
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -128,7 +174,36 @@ export default function CustomerLayout({ children }) {
           <div className="customer-sidebar">
             <Link to="/customer/centers">Centers</Link>
             <Link to="/customer/dashboard">Dashboard</Link>
-            <Link to="/customer/history">Booking History</Link>
+
+            <Link
+              to="/customer/history"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
+                fontSize: "18px",
+              }}
+            >
+              Booking History
+
+              {unreadRefunds > 0 && (
+                <span
+                  style={{
+                    backgroundColor: "#e74c3c",
+                    color: "white",
+                    borderRadius: "50%",
+                    padding: "4px 8px",
+                    flexShrink: 0,
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {unreadRefunds}
+                </span>
+              )}
+            </Link>
+
             <Link to="/customer/chatbot">Chatbot</Link>
             <Link to="/customer/contact">Centers Contact</Link>
             <Link

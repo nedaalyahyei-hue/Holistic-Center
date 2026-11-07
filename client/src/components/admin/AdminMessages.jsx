@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./Admin.css";
-import { FaMoon, FaSun, FaBars, FaHome, FaEnvelope, FaPaperPlane } from "react-icons/fa";
+import { FaMoon, FaSun, FaBars, FaHome, FaEnvelope, FaPaperPlane, FaRegUserCircle } from "react-icons/fa";
 import { MdLanguage } from "react-icons/md";
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
@@ -95,9 +95,22 @@ export default function AdminMessages() {
       <div className="overlay">
         <div className="topbar">
           <div className="topbar-left">
-            <button className="icon-btn" onClick={() => setOpen(!open)}><FaBars /></button>
-            <span className="menu-text">Menu</span>
-          </div>
+  <button
+    className="icon-btn"
+    onClick={() => setOpen(!open)}
+  >
+    <FaBars />
+  </button>
+
+  <button
+    className="icon-btn"
+    onClick={() => navigate("/admin/profile")}
+    title="Admin Profile"
+    style={{ fontSize: "38px" }}
+  >
+    <FaRegUserCircle />
+  </button>
+</div>
           <div className="topbar-center">
             <span
               className="nav-item"
