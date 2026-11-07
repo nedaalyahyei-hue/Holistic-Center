@@ -439,61 +439,61 @@ export default function AppointmentsHistory() {
                   </>
                 )}
                 {reviewingId === booking._id && (
-  <div className="history-card history-edit-card">
-    <h3>Write a Review</h3>
+                  <div className="history-card history-edit-card">
+                    <h3>Write a Review</h3>
 
-    <div className="rating-stars">
-      {[1, 2, 3, 4, 5].map((star) =>
-        star <= reviewRating ? (
-          <FaStar
-            key={star}
-            className="star-icon active-star"
-            onClick={() => setReviewRating(star)}
-          />
-        ) : (
-          <FaRegStar
-            key={star}
-            className="star-icon"
-            onClick={() => setReviewRating(star)}
-          />
-        )
-      )}
-    </div>
+                    <div className="rating-stars">
+                      {[1, 2, 3, 4, 5].map((star) =>
+                        star <= reviewRating ? (
+                          <FaStar
+                            key={star}
+                            className="star-icon active-star"
+                            onClick={() => setReviewRating(star)}
+                          />
+                        ) : (
+                          <FaRegStar
+                            key={star}
+                            className="star-icon"
+                            onClick={() => setReviewRating(star)}
+                          />
+                        )
+                      )}
+                    </div>
 
-    <textarea
-      className="review-textarea"
-      placeholder="Share your experience..."
-      value={reviewComment}
-      onChange={(e) => setReviewComment(e.target.value)}
-    />
+                    <textarea
+                      className="review-textarea"
+                      placeholder="Share your experience..."
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                    />
 
-    {reviewError && (
-      <p style={{ color: "red" }}>{reviewError}</p>
-    )}
+                    {reviewError && (
+                      <p style={{ color: "red" }}>{reviewError}</p>
+                    )}
 
-    <div className="history-card-actions">
-      <button
-        className="history-btn"
-        disabled={reviewSaving || !reviewRating || !reviewComment.trim()}
-        onClick={submitReview}
-      >
-        {reviewSaving ? "Sending..." : "Send Review"}
-      </button>
+                    <div className="history-card-actions">
+                      <button
+                        className="history-btn"
+                        disabled={reviewSaving || !reviewRating || !reviewComment.trim()}
+                        onClick={submitReview}
+                      >
+                        {reviewSaving ? "Sending..." : "Send Review"}
+                      </button>
 
-      <button
-        className="history-btn"
-        onClick={() => {
-          setReviewingId(null);
-          setReviewRating(0);
-          setReviewComment("");
-          setReviewError("");
-        }}
-      >
-        Back
-      </button>
-    </div>
-  </div>
-)}
+                      <button
+                        className="history-btn"
+                        onClick={() => {
+                          setReviewingId(null);
+                          setReviewRating(0);
+                          setReviewComment("");
+                          setReviewError("");
+                        }}
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               </div>
             );

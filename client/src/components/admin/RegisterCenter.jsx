@@ -117,6 +117,12 @@ export default function RegisterCenter() {
               <div className="sidebar-item active">Register Center</div>
               <div
                 className="sidebar-item"
+                onClick={() => navigate("/admin/treatments")}
+              >
+                Treatment Management
+              </div>
+              <div
+                className="sidebar-item"
                 onClick={() => navigate("/admin/messages")}
               >
                 Messages

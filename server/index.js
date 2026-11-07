@@ -40,6 +40,10 @@ function checkImage(image) {
 
 const UserSchema = new mongoose.Schema({
   username: String,
+  centerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "CENTER",
+  },
   email: String,
   phone: String,
   password: String,
@@ -1192,12 +1196,55 @@ app.get("/bookings/customer/:email", async (req, res) => {
   try {
     const bookings = await BookingModel.find({
       customerEmail: req.params.email,
-    }).sort({ date: -1 });
+    })
+      .sort({ date: -1 });
     res.send({ message: "success", bookings });
   } catch (error) {
     res.send({ message: "Get Bookings Error: " + error.message });
   }
 });
+
+// Customer Dashboard - Bookings by Center
+app.get("/customer/dashboard-stats/:email", async (req, res) => {
+  try {
+    const bookings = await BookingModel.find({
+      customerEmail: {
+        $regex: `^${req.params.email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        $options: "i",
+      },
+    }).populate({
+      path: "centerId",
+      model: "USER",
+      select: "username centerId",
+      populate: {
+        path: "centerId",
+        model: "CENTER",
+        select: "centerName",
+      },
+    });
+
+    for (const booking of bookings) {
+      const centerUser = booking.centerId;
+
+      if (centerUser?.centerId) {
+        const center = await CenterModel.findById(centerUser.centerId);
+
+        booking.$locals.centerName = center?.centerName || centerUser.username;
+      }
+    }
+
+    res.send({
+      message: "success",
+      bookings: bookings.map((booking) => ({
+        ...booking.toObject(),
+        centerName: booking.centerId?.centerId?.centerName || booking.centerId?.username || "Unknown Center",
+      })),
+    });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+});
+
 
 // Center asks the customer for permission (edit or cancel)
 // (the center pages no longer use this: permission is taken by phone outside the website)
@@ -1340,7 +1387,7 @@ const FeedbackModel = mongoose.model(
 
 
 
- // Customer submits feedback
+// Customer submits feedback
 app.post("/feedback", async (req, res) => {
   try {
     const { bookingId, customerEmail, rating, comment } = req.body;
@@ -1406,7 +1453,7 @@ app.post("/feedback", async (req, res) => {
 
 
 
- // Get feedback for one center
+// Get feedback for one center
 app.get("/feedback/center/:centerId", async (req, res) => {
   try {
     const { centerId } = req.params;

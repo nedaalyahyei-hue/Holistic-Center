@@ -40,6 +40,7 @@ import Chatbot from "./components/customer/Chatbot";
 import Contact from "./components/customer/Cnotact.jsx";
 import BookingConfirmation from "./components/customer/BookingConfirmation";
 import ContactAdmin from "./components/customer/ContactAdmin";
+import CustomerGuard from "./components/customer/CustomerGuard";
 
 function App() {
   return (
@@ -68,16 +69,16 @@ function App() {
         <Route path="/center/appointment-refundApproval" element={<CenterGuard><AppointmentRefundApproval /></CenterGuard>} />
         <Route path="/center/doctors" element={<CenterGuard><Doctors /></CenterGuard>} />
 
-        <Route path="/customer/update-profile" element={<UpdateUserProfile />} />
+        <Route path="/customer/update-profile" element={<CustomerGuard><UpdateUserProfile /></CustomerGuard>} />
         <Route path="/customer/centers" element={<ViewCenters />} />
         <Route path="/customer/center-details" element={<ViewCenterDetails />} />
         <Route path="/customer/center-details/:centerId" element={<ViewCenterDetails />} />
-        <Route path="/customer/appointment-book/:treatmentId" element={<AppointmentBook />} />
-        <Route path="/customer/booking-confirmation" element={<BookingConfirmation />} />
+        <Route path="/customer/appointment-book/:treatmentId" element={<CustomerGuard><AppointmentBook /></CustomerGuard>} />
+        <Route path="/customer/booking-confirmation" element={<CustomerGuard><BookingConfirmation /></CustomerGuard>} />
         <Route path="/customer/payment" element={<Payment />} />
-        <Route path="/customer/history" element={<AppointmentsHistory />} />
-        <Route path="/customer/review" element={<Review />} />
-        <Route path="/customer/dashboard" element={<UserDashboard />} />
+        <Route path="/customer/history" element={<CustomerGuard><AppointmentsHistory /></CustomerGuard>} />
+        <Route path="/customer/review" element={<CustomerGuard><Review /></CustomerGuard>} />
+        <Route path="/customer/dashboard" element={<CustomerGuard><UserDashboard /></CustomerGuard>} />
         <Route path="/customer/chatbot" element={<Chatbot />} />
         <Route path="/customer/contact" element={<Contact />} />
         <Route path="/customer/contact-admin" element={<ContactAdmin />} />

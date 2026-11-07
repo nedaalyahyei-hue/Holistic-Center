@@ -136,6 +136,12 @@ export default function AdminMessages() {
               </div>
               <div className="sidebar-item" onClick={() => navigate("/admin/register-center")}>Register Center</div>
               <div
+                className="sidebar-item"
+                onClick={() => navigate("/admin/treatments")}
+              >
+                Treatment Management
+              </div>
+              <div
                 className="sidebar-item active"
                 onClick={() => navigate("/admin/messages")}
               >
