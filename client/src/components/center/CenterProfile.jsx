@@ -5,6 +5,16 @@ import logoImg from "../../assets/logo.png";
 import CenterShell from "./CenterShell";
 import ImagePicker from "./ImagePicker";
 import { useLang } from "./centerLang";
+import { Req, FieldError, scrollToFirstError } from "./formHelpers";
+
+// Omani mobile number: exactly 8 digits, numbers only, starts with 9 or 7
+const phoneProblem = (value) => {
+  if (!value) return "phoneRequired";
+  if (!/^\d+$/.test(value)) return "phoneDigitsOnly";
+  if (value.length !== 8) return "phoneLength";
+  if (!/^[79]/.test(value)) return "phoneStart";
+  return "";
+};
 
 export default function CenterProfile() {
   const navigate = useNavigate();
@@ -20,6 +30,8 @@ export default function CenterProfile() {
     image: user?.image || "",
     description: user?.description || "",
   });
+
+  const [phoneError, setPhoneError] = useState(""); // translation key
 
   // each location: { name, mapUrl }
   const [locations, setLocations] = useState([{ name: "", mapUrl: "" }]);
@@ -61,6 +73,19 @@ export default function CenterProfile() {
     setCenter({ ...center, [e.target.name]: e.target.value });
   };
 
+  // only numbers are accepted, at most 8 digits
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value;
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    setCenter({ ...center, phone: digits });
+
+    if (/\D/.test(raw)) setPhoneError("phoneDigitsOnly");
+    else if (digits && !/^[79]/.test(digits)) setPhoneError("phoneStart");
+    else setPhoneError("");
+  };
+
+  const handlePhoneBlur = () => setPhoneError(phoneProblem(center.phone));
+
   const handleLocationChange = (index, field, value) => {
     setLocations(locations.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
   };
@@ -78,6 +103,14 @@ export default function CenterProfile() {
   };
 
   const handleSave = async () => {
+    // the phone number is required and must be a valid Omani number
+    const phoneKey = phoneProblem(center.phone);
+    if (phoneKey) {
+      setPhoneError(phoneKey);
+      scrollToFirstError();
+      return;
+    }
+
     // a location must have both name and link
     const incomplete = locations.some(
       (l) => (l.name.trim() && !l.mapUrl.trim()) || (!l.name.trim() && l.mapUrl.trim())
@@ -135,7 +168,7 @@ export default function CenterProfile() {
       />
       <h2 className="title">{t("centerProfile")}</h2>
 
-      <form className="form-box" onSubmit={(e) => e.preventDefault()}>
+      <form className="form-box" onSubmit={(e) => e.preventDefault()} noValidate>
         <div className="form-group">
           <label className="card-label">{t("centerName")}</label>
           <input type="text" className="styled-input" value={center.username} readOnly disabled
@@ -149,9 +182,21 @@ export default function CenterProfile() {
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("phone")}</label>
-          <input type="text" name="phone" className="styled-input" value={center.phone}
-            onChange={handleChange} placeholder={t("enterPhone")} />
+          <label className="card-label">{t("phone")}<Req /></label>
+          <input
+            type="text"
+            name="phone"
+            className="styled-input"
+            inputMode="numeric"
+            maxLength={8}
+            value={center.phone}
+            onChange={handlePhoneChange}
+            onBlur={handlePhoneBlur}
+            placeholder="91234567"
+            style={phoneError ? { border: "1px solid #c0392b" } : undefined}
+          />
+          <p style={{ fontSize: "12px", color: "#777", margin: "6px 0 0" }}>{t("phoneHint")}</p>
+          <FieldError text={phoneError ? t(phoneError) : ""} />
         </div>
 
         <div className="form-group">

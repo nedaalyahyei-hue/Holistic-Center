@@ -175,7 +175,7 @@ export default function UpdateandCancelAppointment() {
                 />
                 <div>
                   <strong>{t("phonePermission")}</strong>
-                  <div style={{ color: "#777", fontSize: "14px" }}>{t("phoneHint")}</div>
+                  <div style={{ color: "#777", fontSize: "14px" }}>{t("phoneHintCall")}</div>
                 </div>
               </label>
 

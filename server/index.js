@@ -295,9 +295,17 @@ app.get("/center/:id", async (req, res) => {
 });
 
 // Update center data (phone, image, description, locations)
+// The phone number is required: an Omani number = 8 digits, numbers only, starts with 9 or 7
+const OMAN_PHONE_RE = /^[79]\\d{7}$/;
+
 app.put("/center/:id", async (req, res) => {
   try {
-    const { phone, image, description, locations } = req.body;
+    const { image, description, locations } = req.body;
+
+    const phone = String(req.body.phone ?? "").trim();
+    if (!OMAN_PHONE_RE.test(phone)) {
+      return res.send({ message: "Enter a valid Omani phone number" });
+    }
 
     const imageErr = checkImage(image);
     if (imageErr) return res.send({ message: imageErr });
@@ -590,15 +598,18 @@ DoctorSchema.index({ centerId: 1, nameKey: 1 }, { unique: true });
 
 const DoctorModel = mongoose.model("DOCTOR", DoctorSchema, "DOCTOR");
 
-// Add a doctor to a center
+// Add a doctor to a center (name and specialty are both required)
 app.post("/doctors", async (req, res) => {
   try {
     const { centerId, name, specialty } = req.body;
 
     if (!mongoose.isValidObjectId(centerId)) return res.send({ message: "Invalid center" });
 
-    const cleanName = (name || "").replace(/\s+/g, " ").trim();
+    const cleanName = (name || "").replace(/\\s+/g, " ").trim();
     if (!cleanName) return res.send({ message: "Doctor name is required" });
+
+    const cleanSpecialty = (specialty || "").replace(/\\s+/g, " ").trim();
+    if (cleanSpecialty.length < 2) return res.send({ message: "Specialty is required" });
 
     const center = await UserModel.findOne({ _id: centerId, role: "center" });
     if (!center) return res.send({ message: "Center not found" });
@@ -607,7 +618,7 @@ app.post("/doctors", async (req, res) => {
       centerId,
       name: cleanName,
       nameKey: cleanName.toLowerCase(),
-      specialty: (specialty || "").trim(),
+      specialty: cleanSpecialty,
     });
 
     res.send({ message: "success", doctor });
@@ -879,8 +890,39 @@ async function checkDoctors(centerId, slots) {
   return null;
 }
 
+// Every field of a treatment is required
+function checkTreatmentFields(t) {
+  const filled = (v) => typeof v === "string" && v.trim().length > 0;
+
+  if (!filled(t.name)) return "Treatment name is required";
+
+  const price = Number(t.price);
+  if (!Number.isFinite(price) || price <= 0) return "A valid price is required";
+
+  const duration = Number(t.duration);
+  if (!Number.isInteger(duration) || duration <= 0) return "A valid duration is required";
+
+  if (!filled(t.category)) return "Category is required";
+  if (!filled(t.image)) return "Treatment image is required";
+  if (!filled(t.location)) return "Location is required";
+  if (!filled(t.description)) return "Description is required";
+
+  if (
+    !Array.isArray(t.workDays) ||
+    t.workDays.length === 0 ||
+    !t.workDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+  ) {
+    return "Select at least one working day";
+  }
+
+  return null;
+}
+
 app.post("/treatments", async (req, res) => {
   try {
+    const fieldErr = checkTreatmentFields(req.body);
+    if (fieldErr) return res.send({ message: fieldErr });
+
     const imageErr = checkImage(req.body.image);
     if (imageErr) return res.send({ message: imageErr });
 
@@ -923,6 +965,10 @@ app.put("/treatments/:id", async (req, res) => {
   try {
     const existing = await TreatmentModel.findById(req.params.id);
     if (!existing) return res.send({ message: "Treatment not found" });
+
+    // every field must still be filled after the update
+    const fieldErr = checkTreatmentFields({ ...existing.toObject(), ...req.body });
+    if (fieldErr) return res.send({ message: fieldErr });
 
     if (req.body.image !== undefined) {
       const imageErr = checkImage(req.body.image);
