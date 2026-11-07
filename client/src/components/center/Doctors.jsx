@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
+import { Req, FieldError, scrollToFirstError } from "./formHelpers";
 
 const API = "http://localhost:3002";
 
@@ -17,6 +18,7 @@ export default function Doctors() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: "", specialty: "" });
+  const [errors, setErrors] = useState({}); // field -> translation key
 
   useEffect(() => {
     if (!user) {
@@ -40,11 +42,23 @@ export default function Doctors() {
   }, []);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
   const handleAdd = async (e) => {
     e.preventDefault();
+
+    // the name and the specialty are both required
+    const found = {};
+    if (!form.name.trim()) found.name = "errDoctorName";
+    if (form.specialty.trim().length < 2) found.specialty = "errSpecialty";
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      scrollToFirstError();
+      return;
+    }
 
     try {
       const res = await fetch(`${API}/doctors`, {
@@ -100,30 +114,33 @@ export default function Doctors() {
       />
       <h2 className="title">{t("doctorsTitle")}</h2>
 
-      <form className="form-box" onSubmit={handleAdd} style={{ marginBottom: "20px" }}>
+      <form className="form-box" onSubmit={handleAdd} noValidate style={{ marginBottom: "20px" }}>
         <div className="form-group">
-          <label className="card-label">{t("doctorNameLbl")}</label>
+          <label className="card-label">{t("doctorNameLbl")}<Req /></label>
           <input
             type="text"
             name="name"
             className="styled-input"
+            style={errors.name ? { border: "1px solid #c0392b" } : undefined}
             placeholder={t("doctorNamePh")}
             value={form.name}
             onChange={handleChange}
-            required
           />
+          <FieldError text={errors.name ? t(errors.name) : ""} />
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("specialty")}</label>
+          <label className="card-label">{t("specialty")}<Req /></label>
           <input
             type="text"
             name="specialty"
             className="styled-input"
+            style={errors.specialty ? { border: "1px solid #c0392b" } : undefined}
             placeholder={t("specialtyPh")}
             value={form.specialty}
             onChange={handleChange}
           />
+          <FieldError text={errors.specialty ? t(errors.specialty) : ""} />
         </div>
 
         <div className="form-actions" style={{ marginTop: "10px" }}>

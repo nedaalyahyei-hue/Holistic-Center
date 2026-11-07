@@ -8,7 +8,9 @@ import ImagePicker from "./ImagePicker";
 import CategorySelect from "./CategorySelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
-import { slotsProblem } from "./slotUtils";
+import {
+  Req, FieldError, validateTreatment, isFormLevelSlotError, scrollToFirstError,
+} from "./formHelpers";
 
 export default function EditTretment() {
   const navigate = useNavigate();
@@ -32,6 +34,18 @@ export default function EditTretment() {
       ? oldTreatment.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }))
       : [{ start: "09:00", end: "", doctor: "" }]
   );
+  const [errors, setErrors] = useState({}); // field -> translation key
+
+  const err = (field) => (errors[field] ? t(errors[field]) : "");
+  const bad = (field) => (errors[field] ? { border: "1px solid #c0392b" } : undefined);
+
+  const clearError = (field) =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   // If the page is opened without choosing a treatment, go back to Management
   useEffect(() => {
@@ -40,24 +54,17 @@ export default function EditTretment() {
 
   const handleChange = (e) => {
     setTreatment({ ...treatment, [e.target.name]: e.target.value });
+    clearError(e.target.name);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!treatment.category) {
-      alert(t("selectCategory"));
-      return;
-    }
-
-    if (workDays.length === 0) {
-      alert(t("selectDay"));
-      return;
-    }
-
-    const problem = slotsProblem(slots, Number(treatment.duration));
-    if (problem) {
-      alert(t(problem));
+    // every field is required
+    const found = validateTreatment(treatment, workDays, slots);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      scrollToFirstError();
       return;
     }
 
@@ -105,62 +112,87 @@ export default function EditTretment() {
       />
       <h2 className="title"><FaEdit /> {t("updateTreatment")}</h2>
 
-      <form className="form-box" onSubmit={handleSubmit}>
+      <form className="form-box" onSubmit={handleSubmit} noValidate>
         <div className="form-group">
-          <label className="card-label">{t("treatmentName")}</label>
-          <input type="text" name="name" className="styled-input"
-            value={treatment.name} onChange={handleChange} required />
+          <label className="card-label">{t("treatmentName")}<Req /></label>
+          <input type="text" name="name" className="styled-input" style={bad("name")}
+            value={treatment.name} onChange={handleChange} />
+          <FieldError text={err("name")} />
         </div>
 
         <div className="form-row" style={{ display: "flex", gap: "20px" }}>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="card-label">{t("priceOmr")}</label>
-            <input type="number" min="0" name="price" className="styled-input"
-              value={treatment.price} onChange={handleChange} required />
+            <label className="card-label">{t("priceOmr")}<Req /></label>
+            <input type="number" min="0" step="any" name="price" className="styled-input" style={bad("price")}
+              value={treatment.price} onChange={handleChange} />
+            <FieldError text={err("price")} />
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="card-label">{t("durationMin")}</label>
-            <input type="number" min="1" name="duration" className="styled-input"
-              value={treatment.duration} onChange={handleChange} required />
+            <label className="card-label">{t("durationMin")}<Req /></label>
+            <input type="number" min="1" step="1" name="duration" className="styled-input" style={bad("duration")}
+              value={treatment.duration} onChange={handleChange} />
+            <FieldError text={err("duration")} />
           </div>
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("category")}</label>
+          <label className="card-label">{t("category")}<Req /></label>
           <CategorySelect
             value={treatment.category}
-            onChange={(v) => setTreatment({ ...treatment, category: v })}
+            onChange={(v) => {
+              setTreatment({ ...treatment, category: v });
+              clearError("category");
+            }}
           />
+          <FieldError text={err("category")} />
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("treatmentImage")}</label>
+          <label className="card-label">{t("treatmentImage")}<Req /></label>
           <ImagePicker
             value={treatment.image}
-            onChange={(img) => setTreatment({ ...treatment, image: img })}
+            onChange={(img) => {
+              setTreatment({ ...treatment, image: img });
+              clearError("image");
+            }}
             maxSide={800}
           />
+          <FieldError text={err("image")} />
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("location")}</label>
-          <input type="text" name="location" className="styled-input"
+          <label className="card-label">{t("location")}<Req /></label>
+          <input type="text" name="location" className="styled-input" style={bad("location")}
             value={treatment.location} onChange={handleChange} />
+          <FieldError text={err("location")} />
         </div>
 
         <div className="form-group">
-          <label className="card-label">{t("description")}</label>
-          <textarea name="description" className="styled-input" rows="3"
+          <label className="card-label">{t("description")}<Req /></label>
+          <textarea name="description" className="styled-input" rows="3" style={bad("description")}
             value={treatment.description} onChange={handleChange}></textarea>
+          <FieldError text={err("description")} />
         </div>
 
         <ScheduleEditor
           workDays={workDays}
-          setWorkDays={setWorkDays}
+          setWorkDays={(v) => {
+            setWorkDays(v);
+            clearError("workDays");
+          }}
           slots={slots}
-          setSlots={setSlots}
+          setSlots={(v) => {
+            setSlots(v);
+            clearError("slots");
+          }}
           duration={Number(treatment.duration)}
         />
+        <FieldError text={err("workDays")} />
+        <FieldError text={errors.slots && isFormLevelSlotError(errors.slots) ? t(errors.slots) : ""} />
+
+        {Object.keys(errors).length > 0 && (
+          <p style={{ color: "#c0392b", fontWeight: "bold", marginTop: "12px" }}>{t("formHasErrors")}</p>
+        )}
 
         <div className="form-actions" style={{ display: "flex", gap: "15px" }}>
           <button type="submit" className="save-btn" style={{ flex: 1 }}>
