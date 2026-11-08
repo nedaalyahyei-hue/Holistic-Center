@@ -5,6 +5,7 @@ import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
 import ImagePicker from "./ImagePicker";
 import CategorySelect from "./CategorySelect";
+import LocationSelect from "./LocationSelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import {
@@ -149,8 +150,13 @@ export default function AddTreatment() {
 
         <div className="form-group">
           <label className="card-label">{t("location")}<Req /></label>
-          <input type="text" name="location" className="styled-input" style={bad("location")}
-            placeholder={t("locationPh")} value={form.location} onChange={handleChange} />
+          <LocationSelect
+            value={form.location}
+            onChange={(v) => {
+              setForm({ ...form, location: v });
+              clearError("location");
+            }}
+          />
           <FieldError text={err("location")} />
         </div>
 

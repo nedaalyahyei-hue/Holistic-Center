@@ -1,18 +1,41 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useRef } from "react";
 import "./Center.css";
 import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import CenterShell from "./CenterShell";
 import ImagePicker from "./ImagePicker";
+import Toast from "./Toast";
 import { useLang } from "./centerLang";
 import { Req, FieldError, scrollToFirstError } from "./formHelpers";
 
-// Omani mobile number: exactly 8 digits, numbers only, starts with 9 or 7
-const phoneProblem = (value) => {
-  if (!value) return "phoneRequired";
-  if (!/^\d+$/.test(value)) return "phoneDigitsOnly";
-  if (value.length !== 8) return "phoneLength";
-  if (!/^[79]/.test(value)) return "phoneStart";
+const API = "http://localhost:3002";
+
+const emptyLocation = () => ({ _id: "", name: "", mapUrl: "" });
+
+// rows without any text are ignored
+const cleanLocations = (list) =>
+  (list || [])
+    .map((l) => ({
+      _id: l._id || "",
+      name: (l.name || "").replace(/\s+/g, " ").trim(),
+      mapUrl: (l.mapUrl || "").trim(),
+    }))
+    .filter((l) => l.name || l.mapUrl);
+
+// phone number: 8 digits, numbers only, starts with 9 or 7
+const phoneFormatProblem = (value) => {
+  if (!/^\d{8}$/.test(value) || !/^[79]/.test(value)) {
+    return "The number is incorrect";
+  }
+  return "";
+};
+
+const locationsProblem = (rows) => {
+  if (rows.some((l) => !l.name || !l.mapUrl)) return "locIncomplete";
+  if (rows.some((l) => !/^https?:\/\//i.test(l.mapUrl))) return "locBadLink";
+  const names = rows.map((l) => l.name.toLowerCase());
+  if (new Set(names).size !== names.length) return "locDuplicate";
   return "";
 };
 
@@ -22,19 +45,50 @@ export default function CenterProfile() {
 
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Name and email show immediately from the login data
+  // Only the name and the email come from the login data (they never change).
+  // Everything else is loaded from the server, so an old copy can never overwrite the saved data.
   const [center, setCenter] = useState({
     username: user?.username || "",
     email: user?.email || "",
-    phone: user?.phone || "",
-    image: user?.image || "",
-    description: user?.description || "",
+    phone: "",
+    image: "",
+    description: "",
   });
+  const [locations, setLocations] = useState([emptyLocation()]);
 
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [phoneError, setPhoneError] = useState(""); // translation key
+  const [locError, setLocError] = useState(""); // translation key
+  const [toast, setToast] = useState({ text: "", type: "success" });
 
-  // each location: { name, mapUrl }
-  const [locations, setLocations] = useState([{ name: "", mapUrl: "" }]);
+  // what is saved in the database right now
+  const savedData = useRef({ phone: "", image: "", description: "", locations: [] });
+
+  const applyServerData = (c) => {
+    const data = {
+      phone: c.phone || "",
+      image: c.image || "",
+      description: c.description || "",
+      locations: (c.locations || []).map((l) => ({
+        _id: String(l._id),
+        name: l.name,
+        mapUrl: l.mapUrl,
+      })),
+    };
+    savedData.current = data;
+
+    setCenter((prev) => ({
+      ...prev,
+      username: c.username || prev.username,
+      email: c.email || prev.email,
+      phone: data.phone,
+      image: data.image,
+      description: data.description,
+    }));
+    setLocations(data.locations.length > 0 ? data.locations : [emptyLocation()]);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -44,25 +98,16 @@ export default function CenterProfile() {
 
     const loadCenter = async () => {
       try {
-        const res = await fetch(`http://localhost:3002/center/${user._id}`);
+        const res = await fetch(`${API}/center/${user._id}`);
         const result = await res.json();
         if (result.message === "success") {
-          const c = result.center;
-          setCenter({
-            username: c.username || "",
-            email: c.email || "",
-            phone: c.phone || "",
-            image: c.image || "",
-            description: c.description || "",
-          });
-          setLocations(
-            c.locations && c.locations.length > 0
-              ? c.locations.map((l) => ({ name: l.name, mapUrl: l.mapUrl }))
-              : [{ name: "", mapUrl: "" }]
-          );
+          applyServerData(result.center);
+          setLoaded(true);
+        } else {
+          setLoadError(true);
         }
       } catch (error) {
-        console.log(error);
+        setLoadError(true);
       }
     };
 
@@ -73,86 +118,129 @@ export default function CenterProfile() {
     setCenter({ ...center, [e.target.name]: e.target.value });
   };
 
+  // an empty phone is always a problem; the format is only checked when the number was changed
+  const phoneKey = (value) => {
+    if (!value) return "The number is incorrect.";
+    if (value !== savedData.current.phone) return phoneFormatProblem(value);
+    return "";
+  };
+
   // only numbers are accepted, at most 8 digits
   const handlePhoneChange = (e) => {
     const raw = e.target.value;
     const digits = raw.replace(/\D/g, "").slice(0, 8);
     setCenter({ ...center, phone: digits });
 
-    if (/\D/.test(raw)) setPhoneError("phoneDigitsOnly");
-    else if (digits && !/^[79]/.test(digits)) setPhoneError("phoneStart");
-    else setPhoneError("");
+    if (/\D/.test(raw)) setPhoneError("The number is incorrect.");
+    else if (digits && digits !== savedData.current.phone && !/^[79]/.test(digits)) {
+      setPhoneError("The number is incorrect.");
+    } else setPhoneError("");
   };
 
-  const handlePhoneBlur = () => setPhoneError(phoneProblem(center.phone));
+  const handlePhoneBlur = () => setPhoneError(phoneKey(center.phone));
 
   const handleLocationChange = (index, field, value) => {
     setLocations(locations.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+    setLocError("");
   };
 
   const addLocation = () => {
-    setLocations([...locations, { name: "", mapUrl: "" }]);
+    setLocations([...locations, emptyLocation()]);
   };
 
   const removeLocation = (index) => {
+    setLocError("");
     if (locations.length === 1) {
-      setLocations([{ name: "", mapUrl: "" }]);
+      setLocations([emptyLocation()]);
       return;
     }
     setLocations(locations.filter((_, i) => i !== index));
   };
 
+  const keepInBrowser = (c) => {
+    // the login data is kept in the browser; big pictures are not stored there
+    try {
+      const image = c.image && !c.image.startsWith("data:") ? c.image : "";
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...user,
+          phone: c.phone,
+          image,
+          description: c.description,
+          locations: c.locations,
+        })
+      );
+    } catch (error) {
+      /* the browser storage is full: the data is still saved on the server */
+    }
+  };
+
   const handleSave = async () => {
-    // the phone number is required and must be a valid Omani number
-    const phoneKey = phoneProblem(center.phone);
-    if (phoneKey) {
-      setPhoneError(phoneKey);
+    if (!loaded || saving) return;
+
+    const pKey = phoneKey(center.phone);
+    const rows = cleanLocations(locations);
+    const lKey = locationsProblem(rows);
+    setPhoneError(pKey);
+    setLocError(lKey);
+    if (pKey || lKey) {
+      if (pKey) setToast({ text: "The number is incorrect.", type: "error" });
       scrollToFirstError();
       return;
     }
 
-    // a location must have both name and link
-    const incomplete = locations.some(
-      (l) => (l.name.trim() && !l.mapUrl.trim()) || (!l.name.trim() && l.mapUrl.trim())
-    );
-    if (incomplete) {
-      alert(t("locIncomplete"));
+    // send only what really changed: everything else stays exactly as it is saved
+    const saved = savedData.current;
+    const body = {};
+    if (center.phone !== saved.phone) body.phone = center.phone;
+    if (center.image !== saved.image) body.image = center.image;
+    if (center.description !== saved.description) body.description = center.description;
+    if (JSON.stringify(rows) !== JSON.stringify(cleanLocations(saved.locations))) body.locations = rows;
+
+    if (Object.keys(body).length === 0) {
+      setToast({ text: t("nothingToSave"), type: "info" });
       return;
     }
 
-    const badLink = locations.some(
-      (l) => l.mapUrl.trim() && !/^https?:\/\//i.test(l.mapUrl.trim())
-    );
-    if (badLink) {
-      alert(t("locBadLink"));
-      return;
-    }
-
+    setSaving(true);
     try {
-      const res = await fetch(`http://localhost:3002/center/${user._id}`, {
+      const res = await fetch(`${API}/center/${user._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: center.phone,
-          image: center.image,
-          description: center.description,
-          locations,
-        }),
+        body: JSON.stringify(body),
       });
       const result = await res.json();
 
       if (result.message === "success") {
-        alert(t("savedOk"));
+        applyServerData(result.center);
+        keepInBrowser(result.center);
+        setToast({ text: "Saved successfully", type: "success" });
       } else {
-        alert(ts(result.message));
+        setToast({
+          text: result.message === "Invalid phone number"
+            ? "The number is incorrect."
+            : ts(result.message),
+          type: "error",
+        });
       }
     } catch (error) {
-      alert(t("serverError"));
+      setToast({ text: t("serverError"), type: "error" });
+    } finally {
+      setSaving(false);
     }
   };
 
+  const canSave = loaded && !saving;
+
   return (
     <CenterShell active="profile">
+      <Toast
+        text={toast.text}
+        type={toast.type}
+        onClose={() => setToast({ text: "", type: toast.type })}
+      />
+
       <img
         src={center.image || logoImg}
         alt="Center Profile"
@@ -169,6 +257,15 @@ export default function CenterProfile() {
       <h2 className="title">{t("centerProfile")}</h2>
 
       <form className="form-box" onSubmit={(e) => e.preventDefault()} noValidate>
+        {!loaded && !loadError && (
+          <p style={{ color: "#777", margin: "0 0 12px" }}>{t("loading")}</p>
+        )}
+        {loadError && (
+          <p style={{ color: "#c0392b", fontWeight: "bold", margin: "0 0 12px" }}>
+            {t("profileLoadError")}
+          </p>
+        )}
+
         <div className="form-group">
           <label className="card-label">{t("centerName")}</label>
           <input type="text" className="styled-input" value={center.username} readOnly disabled
@@ -193,10 +290,10 @@ export default function CenterProfile() {
             onChange={handlePhoneChange}
             onBlur={handlePhoneBlur}
             placeholder="91234567"
+            disabled={!loaded}
             style={phoneError ? { border: "1px solid #c0392b" } : undefined}
           />
-          <p style={{ fontSize: "12px", color: "#777", margin: "6px 0 0" }}>{t("phoneHint")}</p>
-          <FieldError text={phoneError ? t(phoneError) : ""} />
+          <FieldError text={phoneError} />
         </div>
 
         <div className="form-group">
@@ -211,10 +308,11 @@ export default function CenterProfile() {
 
         <div className="form-group">
           <label className="card-label">{t("locations")}</label>
+          <p style={{ fontSize: "12px", color: "#777", margin: "0 0 8px" }}>{t("locationsHint")}</p>
 
           {locations.map((loc, index) => (
             <div
-              key={index}
+              key={loc._id || `new-${index}`}
               style={{
                 border: "1px solid #ddd",
                 borderRadius: "10px",
@@ -228,6 +326,7 @@ export default function CenterProfile() {
                 placeholder={t("locationNamePh")}
                 value={loc.name}
                 onChange={(e) => handleLocationChange(index, "name", e.target.value)}
+                disabled={!loaded}
                 style={{ marginBottom: "8px" }}
               />
               <input
@@ -236,6 +335,7 @@ export default function CenterProfile() {
                 placeholder={t("mapLinkPh")}
                 value={loc.mapUrl}
                 onChange={(e) => handleLocationChange(index, "mapUrl", e.target.value)}
+                disabled={!loaded}
               />
               <button
                 type="button"
@@ -257,6 +357,7 @@ export default function CenterProfile() {
           <button
             type="button"
             onClick={addLocation}
+            disabled={!loaded}
             style={{
               width: "100%",
               padding: "10px",
@@ -270,16 +371,23 @@ export default function CenterProfile() {
           >
             {t("addLocation")}
           </button>
+          <FieldError text={locError ? t(locError) : ""} />
         </div>
 
         <div className="form-group">
           <label className="card-label">{t("description")}</label>
           <textarea name="description" className="styled-input" rows="3" value={center.description}
-            onChange={handleChange} placeholder={t("aboutPh")}></textarea>
+            onChange={handleChange} placeholder={t("aboutPh")} disabled={!loaded}></textarea>
         </div>
 
         <div className="form-actions" style={{ marginTop: "20px" }}>
-          <button type="button" className="save-btn" style={{ width: "100%" }} onClick={handleSave}>
+          <button
+            type="button"
+            className="save-btn"
+            style={{ width: "100%", opacity: canSave ? 1 : 0.5 }}
+            disabled={!canSave}
+            onClick={handleSave}
+          >
             {t("saveChanges")}
           </button>
         </div>

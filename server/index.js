@@ -305,36 +305,161 @@ app.get("/center/:id", async (req, res) => {
   }
 });
 
-// Update center data (phone, image, description, locations)
-// The phone number is required: an Omani number = 8 digits, numbers only, starts with 9 or 7
-const OMAN_PHONE_RE = /^[79]\\d{7}$/;
+// ================= Center profile update =================
+// A phone number: 8 digits, numbers only, starts with 9 or 7
+const PHONE_RE = /^[79]\d{7}$/;
 
+// The CENTER record (the one the admin and the customers read) of a center account
+async function findCenterRecord(user) {
+  if (user.email && user.email.trim()) {
+    const byEmail = await CenterModel.findOne({
+      email: new RegExp(`^${escapeRegex(user.email.trim())}$`, "i"),
+    });
+    if (byEmail) return byEmail;
+  }
+
+  if (user.username && user.username.trim()) {
+    return CenterModel.findOne({
+      centerName: new RegExp(`^${escapeRegex(user.username.trim())}$`, "i"),
+    });
+  }
+
+  return null;
+}
+
+// Keeps the CENTER record in step with the account profile (phone, image, locations)
+async function syncCenterRecord(user) {
+  const record = await findCenterRecord(user);
+  if (!record) return;
+
+  if (user.phone) record.phone = user.phone;
+  record.image = user.image || "";
+  record.location = (user.locations || []).map((l) => l.name).join(", ");
+  if (!record.email && user.email) record.email = user.email;
+
+  await record.save();
+}
+
+// Only what the center sends is changed. Everything else stays exactly as it is saved.
 app.put("/center/:id", async (req, res) => {
   try {
-    const { image, description, locations } = req.body;
+    if (!mongoose.isValidObjectId(req.params.id)) return res.send({ message: "Center not found" });
 
-    const phone = String(req.body.phone ?? "").trim();
-    if (!OMAN_PHONE_RE.test(phone)) {
-      return res.send({ message: "Enter a valid Omani phone number" });
-    }
-
-    const imageErr = checkImage(image);
-    if (imageErr) return res.send({ message: imageErr });
-
-    // keep only valid locations (name + link both filled)
-    const cleanLocations = (locations || [])
-      .filter((l) => l.name && l.name.trim() && l.mapUrl && l.mapUrl.trim())
-      .map((l) => ({ name: l.name.trim(), mapUrl: l.mapUrl.trim() }));
-
-    const center = await UserModel.findOneAndUpdate(
-      { _id: req.params.id, role: "center" },
-      { phone, image, description, locations: cleanLocations },
-      { new: true }
-    ).select("-password -resetCode -resetCodeExpiry");
-
+    const center = await UserModel.findOne({ _id: req.params.id, role: "center" });
     if (!center) return res.send({ message: "Center not found" });
 
-    res.send({ message: "success", center });
+    const body = req.body || {};
+    const updates = {};
+    const renamed = []; // treatments that must follow a renamed location
+
+    // phone: required, and checked only when it really changes
+    if (body.phone !== undefined) {
+      const phone = String(body.phone ?? "").trim();
+      if (!phone) return res.send({ message: "Invalid phone number" });
+
+      if (phone !== (center.phone || "")) {
+        if (!PHONE_RE.test(phone)) return res.send({ message: "Invalid phone number" });
+        updates.phone = phone;
+      }
+    }
+
+    if (body.image !== undefined) {
+      const imageErr = checkImage(body.image);
+      if (imageErr) return res.send({ message: imageErr });
+      updates.image = body.image || "";
+    }
+
+    if (body.description !== undefined) {
+      updates.description = String(body.description ?? "");
+    }
+
+    if (body.locations !== undefined) {
+      if (!Array.isArray(body.locations)) return res.send({ message: "Invalid locations" });
+
+      const oldLocations = (center.locations || []).map((l) => ({
+        id: String(l._id),
+        name: l.name,
+      }));
+
+      const rows = [];
+      const usedIds = new Set();
+
+      for (const l of body.locations) {
+        const name = String(l?.name ?? "").replace(/\s+/g, " ").trim();
+        const mapUrl = String(l?.mapUrl ?? "").trim();
+
+        if (!name && !mapUrl) continue; // empty row
+        if (!name || !mapUrl) return res.send({ message: "Each location needs a name and a map link" });
+        if (!/^https?:\/\//i.test(mapUrl)) {
+          return res.send({ message: "Map link must start with http:// or https://" });
+        }
+
+        // a saved location keeps its id, so a rename can be followed in the treatments
+        let old = oldLocations.find((o) => o.id === String(l?._id ?? ""));
+        if (old && usedIds.has(old.id)) old = undefined;
+        if (old) usedIds.add(old.id);
+
+        rows.push({ old, name, mapUrl });
+      }
+
+      const seen = new Set();
+      for (const r of rows) {
+        const key = r.name.toLowerCase();
+        if (seen.has(key)) return res.send({ message: "Location names must be different" });
+        seen.add(key);
+      }
+
+      const finalNames = new Set(rows.map((r) => r.name));
+      const renameMap = new Map();
+      rows.forEach((r) => {
+        if (r.old && r.old.name !== r.name) renameMap.set(r.old.name, r.name);
+      });
+
+      // treatments that use a location of this center
+      const oldNames = new Set(oldLocations.map((o) => o.name));
+      const treatments = await TreatmentModel.find({ centerId: center._id }).select("location");
+
+      for (const tr of treatments) {
+        if (!oldNames.has(tr.location)) continue; // an older treatment with free text is not touched
+
+        const newName = renameMap.has(tr.location) ? renameMap.get(tr.location) : tr.location;
+        if (!finalNames.has(newName)) {
+          return res.send({
+            message: "This location is used in a treatment. Change the treatment's location first.",
+          });
+        }
+        if (newName !== tr.location) renamed.push({ id: tr._id, location: newName });
+      }
+
+      updates.locations = rows.map((r) =>
+        r.old
+          ? { _id: r.old.id, name: r.name, mapUrl: r.mapUrl }
+          : { name: r.name, mapUrl: r.mapUrl }
+      );
+    }
+
+    let saved = center;
+    if (Object.keys(updates).length > 0) {
+      saved = await UserModel.findByIdAndUpdate(center._id, { $set: updates }, { new: true });
+    }
+
+    if (renamed.length > 0) {
+      await TreatmentModel.bulkWrite(
+        renamed.map((r) => ({
+          updateOne: { filter: { _id: r.id }, update: { $set: { location: r.location } } },
+        }))
+      );
+    }
+
+    // the admin and the customers read the CENTER record: keep it in step
+    try {
+      await syncCenterRecord(saved);
+    } catch (syncError) {
+      console.log("Center sync error:", syncError.message);
+    }
+
+    const result = await UserModel.findById(center._id).select("-password -resetCode -resetCodeExpiry");
+    res.send({ message: "success", center: result });
   } catch (error) {
     res.send({ message: "Update Center Error: " + error.message });
   }
@@ -979,10 +1104,24 @@ function checkTreatmentFields(t) {
   return null;
 }
 
+// the location of a treatment must be one of the locations saved in the center's profile
+async function checkTreatmentLocation(centerId, location) {
+  if (!mongoose.isValidObjectId(centerId)) return "Invalid center";
+
+  const center = await UserModel.findOne({ _id: centerId, role: "center" }).select("locations");
+  const names = new Set((center?.locations || []).map((l) => l.name));
+
+  if (!names.has(String(location ?? "").trim())) return "Choose a location from your saved locations";
+  return null;
+}
+
 app.post("/treatments", async (req, res) => {
   try {
     const fieldErr = checkTreatmentFields(req.body);
     if (fieldErr) return res.send({ message: fieldErr });
+
+    const locationErr = await checkTreatmentLocation(req.body.centerId, req.body.location);
+    if (locationErr) return res.send({ message: locationErr });
 
     const imageErr = checkImage(req.body.image);
     if (imageErr) return res.send({ message: imageErr });
@@ -1030,6 +1169,12 @@ app.put("/treatments/:id", async (req, res) => {
     // every field must still be filled after the update
     const fieldErr = checkTreatmentFields({ ...existing.toObject(), ...req.body });
     if (fieldErr) return res.send({ message: fieldErr });
+
+    // a new location must be one of the center's saved locations
+    if (req.body.location !== undefined && req.body.location !== existing.location) {
+      const locationErr = await checkTreatmentLocation(existing.centerId, req.body.location);
+      if (locationErr) return res.send({ message: locationErr });
+    }
 
     if (req.body.image !== undefined) {
       const imageErr = checkImage(req.body.image);
@@ -1675,6 +1820,22 @@ app.get("/refunds/center/:centerId", async (req, res) => {
 });
 
 // Refund requests of one customer
+// Number of refund requests of a center that still wait for an answer (for the red circle)
+app.get("/refunds/center/:centerId/pending-count", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.centerId)) {
+      return res.send({ message: "success", count: 0 });
+    }
+    const count = await RefundModel.countDocuments({
+      centerId: req.params.centerId,
+      status: "pending",
+    });
+    res.send({ message: "success", count });
+  } catch (error) {
+    res.send({ message: "Count Error: " + error.message });
+  }
+});
+
 app.get("/refunds/customer/:email", async (req, res) => {
   try {
     const refunds = await RefundModel.find({ customerEmail: req.params.email })

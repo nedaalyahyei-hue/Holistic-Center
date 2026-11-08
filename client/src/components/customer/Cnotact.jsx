@@ -9,7 +9,7 @@ export default function Contact() {
   const [centers, setCenters] = useState([]);
   const [selectedCenterId, setSelectedCenterId] = useState("");
 
-  useEffect(() => {
+  const loadCenters = () => {
     fetch("http://localhost:3002/customer/centers")
       .then((response) => response.json())
       .then((data) => {
@@ -18,13 +18,19 @@ export default function Contact() {
         }
       })
       .catch((error) => console.error("Error loading centers:", error));
+  };
+
+  useEffect(() => {
+    loadCenters();
+
+    // a center can change its phone number while this page is open
+    window.addEventListener("focus", loadCenters);
+    return () => window.removeEventListener("focus", loadCenters);
   }, []);
 
   const selectedCenter = centers.find(
     (center) => center._id === selectedCenterId
   );
-
-  console.log("Selected Center:", selectedCenter);
 
   return (
     <CustomerLayout>
@@ -42,7 +48,10 @@ export default function Contact() {
             <select
               id="centerSelect"
               value={selectedCenterId}
-              onChange={(e) => setSelectedCenterId(e.target.value)}
+              onChange={(e) => {
+                setSelectedCenterId(e.target.value);
+                loadCenters();
+              }}
             >
               <option value="">Choose a center</option>
 
@@ -59,12 +68,16 @@ export default function Contact() {
               <FaPhoneAlt />
             </div>
             {selectedCenter && (
-              <p>
-                Contact:{" "}
-                <a href={`tel:${selectedCenter.phone}`}>
-                  {selectedCenter.phone}
-                </a>
-              </p>
+              selectedCenter.phone ? (
+                <p>
+                  Contact:{" "}
+                  <a href={`tel:${selectedCenter.phone}`}>
+                    {selectedCenter.phone}
+                  </a>
+                </p>
+              ) : (
+                <p>Contact: Not available</p>
+              )
             )}
           </div>
 

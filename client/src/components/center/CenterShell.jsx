@@ -8,6 +8,7 @@ import {
 import { IoLogOutOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "./centerLang";
+import usePendingRefunds from "./usePendingRefunds";
 import logoImg from "../../assets/logo.png";
 import "./CenterShell.css";
 
@@ -29,6 +30,14 @@ const readOpen = () => {
   }
 };
 
+const readCenterId = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user"))?._id;
+  } catch (error) {
+    return undefined;
+  }
+};
+
 // Shared layout for all center pages: topbar, fixed side menu, dark mode and language button
 export default function CenterShell({ active, children }) {
   const navigate = useNavigate();
@@ -38,6 +47,11 @@ export default function CenterShell({ active, children }) {
   const [darkMode, setDarkMode] = useState(false);
   const [narrow, setNarrow] = useState(isNarrowNow);
   const [open, setOpen] = useState(readOpen);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  const [centerId] = useState(readCenterId);
+  const pending = usePendingRefunds(centerId);
+  const pendingText = pending > 99 ? "99+" : String(pending);
 
   const groupActive = GROUP_PAGES.includes(active);
   const [treatOpen, setTreatOpen] = useState(groupActive);
@@ -57,6 +71,16 @@ export default function CenterShell({ active, children }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Esc closes the logout question
+  useEffect(() => {
+    if (!confirmLogout) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setConfirmLogout(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmLogout]);
+
   const toggleSidebar = () => {
     const next = !open;
     setOpen(next);
@@ -74,12 +98,18 @@ export default function CenterShell({ active, children }) {
     navigate(path);
   };
 
-  const handleLogout = () => {
+  const askLogout = () => {
+    if (narrow) setOpen(false);
+    setConfirmLogout(true);
+  };
+
+  const doLogout = () => {
     try {
       localStorage.removeItem("user");
     } catch (error) {
       /* ignore */
     }
+    setConfirmLogout(false);
     navigate("/");
   };
 
@@ -93,7 +123,7 @@ export default function CenterShell({ active, children }) {
     transition: "margin 0.3s ease, width 0.3s ease",
   };
 
-  const renderItem = (key, icon, label, isActive, onClick, isChild) => (
+  const renderItem = (key, icon, label, isActive, onClick, isChild, badge) => (
     <div
       key={key}
       className={`cs-item ${isChild ? "cs-child" : ""} ${isActive ? "cs-active" : ""}`}
@@ -101,11 +131,19 @@ export default function CenterShell({ active, children }) {
     >
       <span className="cs-icon">{icon}</span>
       <span className="cs-label">{label}</span>
+      {badge}
     </div>
   );
 
   // opens a page, unless we are already on it
   const open_ = (pageKey, path) => (active === pageKey ? undefined : () => go(path));
+
+  const refundBadge =
+    pending > 0 ? (
+      <span className="cs-badge" title={t("pendingRefundsTitle", { n: pending })}>
+        {pendingText}
+      </span>
+    ) : null;
 
   const sidebar = (
     <>
@@ -153,19 +191,44 @@ export default function CenterShell({ active, children }) {
 
           {renderItem("refunds", <MdHistory />, t("refundRequests"),
             active === "refundRequests",
-            open_("refundRequests", "/center/appointment-refundApproval"))}
+            open_("refundRequests", "/center/appointment-refundApproval"),
+            false, refundBadge)}
 
           {renderItem("doctors", <FaUserMd />, t("doctors"),
             active === "doctors", open_("doctors", "/center/doctors"))}
         </nav>
 
-        <div className="cs-logout" onClick={handleLogout}>
+        <div className="cs-logout" onClick={askLogout}>
           <IoLogOutOutline size={22} />
           <span>{t("logout")}</span>
         </div>
       </aside>
     </>
   );
+
+  const logoutDialog = confirmLogout ? (
+    <div className="cs-modal-backdrop" onClick={() => setConfirmLogout(false)}>
+      <div
+        className={`cs-modal ${darkMode ? "cs-modal-dark" : ""}`}
+        dir={isAr ? "rtl" : "ltr"}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="cs-modal-icon"><IoLogOutOutline size={34} /></div>
+        <h3>{t("logoutTitle")}</h3>
+        <p>{t("logoutText")}</p>
+        <div className="cs-modal-actions">
+          <button type="button" className="cs-btn-stay" onClick={() => setConfirmLogout(false)}>
+            {t("stay")}
+          </button>
+          <button type="button" className="cs-btn-leave" onClick={doLogout}>
+            {t("logoutYes")}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -175,7 +238,11 @@ export default function CenterShell({ active, children }) {
       <div className="center-overlay">
         <div className="topbar" style={shiftStyle}>
           <div className="topbar-left">
-            <button className="icon-btn" onClick={toggleSidebar}><FaBars /></button>
+            <button className="icon-btn" onClick={toggleSidebar} style={{ position: "relative" }}>
+              <FaBars />
+              {/* the menu is closed but a refund request is waiting */}
+              {pending > 0 && !open && <span className="cs-dot" />}
+            </button>
             <button
               className="icon-btn profile-nav-btn"
               onClick={() => navigate("/center/center-profile")}
@@ -209,8 +276,14 @@ export default function CenterShell({ active, children }) {
         </div>
       </div>
 
-      {/* drawn outside the page so it always stays fixed to the screen */}
-      {createPortal(sidebar, document.body)}
+      {/* drawn outside the page so they always stay fixed to the screen */}
+      {createPortal(
+        <>
+          {sidebar}
+          {logoutDialog}
+        </>,
+        document.body
+      )}
     </div>
   );
 }

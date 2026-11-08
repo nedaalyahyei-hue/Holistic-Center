@@ -6,6 +6,7 @@ import logoImg from "../../assets/logo.png";
 import ScheduleEditor from "./ScheduleEditor";
 import ImagePicker from "./ImagePicker";
 import CategorySelect from "./CategorySelect";
+import LocationSelect from "./LocationSelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 import {
@@ -162,8 +163,13 @@ export default function EditTretment() {
 
         <div className="form-group">
           <label className="card-label">{t("location")}<Req /></label>
-          <input type="text" name="location" className="styled-input" style={bad("location")}
-            value={treatment.location} onChange={handleChange} />
+          <LocationSelect
+            value={treatment.location}
+            onChange={(v) => {
+              setTreatment({ ...treatment, location: v });
+              clearError("location");
+            }}
+          />
           <FieldError text={err("location")} />
         </div>
 

@@ -7,6 +7,7 @@ import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
 
 const API = "http://localhost:3002";
+const EVERY_MS = 4000; // new requests show up by themselves
 
 export default function AppointmentRefundApproval() {
   const navigate = useNavigate();
@@ -17,28 +18,38 @@ export default function AppointmentRefundApproval() {
 
   const user = JSON.parse(localStorage.getItem("user"));
 
+  const loadRefunds = async () => {
+    try {
+      const res = await fetch(`${API}/refunds/center/${user._id}`);
+      const result = await res.json();
+      if (result.message === "success") {
+        // keep the cards that were just answered (they disappear after 3 seconds),
+        // and show every request that still needs an answer
+        setRefundRequests((prev) => {
+          const answered = prev.filter((r) => r.status !== "pending");
+          const answeredIds = new Set(answered.map((r) => r._id));
+          const pending = result.refunds.filter(
+            (r) => r.status === "pending" && !answeredIds.has(r._id)
+          );
+          return [...pending, ...answered];
+        });
+      }
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate("/login");
-      return;
+      return undefined;
     }
 
-    const loadRefunds = async () => {
-      try {
-        const res = await fetch(`${API}/refunds/center/${user._id}`);
-        const result = await res.json();
-        if (result.message === "success") {
-          // only requests that still need an answer
-          setRefundRequests(result.refunds.filter((r) => r.status === "pending"));
-        }
-      } catch (error) {
-        console.log(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadRefunds();
+    const timer = setInterval(loadRefunds, EVERY_MS);
+    return () => clearInterval(timer);
   }, []);
 
   const handleAction = async (id, actionType) => {
@@ -57,6 +68,9 @@ export default function AppointmentRefundApproval() {
         alert(ts(result.message));
         return;
       }
+
+      // the red circle in the menu updates right away
+      window.dispatchEvent(new Event("refunds-changed"));
 
       // show the result message, then remove the card
       setRefundRequests((prev) =>
