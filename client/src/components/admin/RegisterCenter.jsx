@@ -16,6 +16,7 @@ export default function RegisterCenter() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [crNumber, setCrNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +36,7 @@ export default function RegisterCenter() {
           username: name,
           email,
           phone,
+          crNumber,
           password,
           confirmPassword,
         },
@@ -49,6 +51,7 @@ export default function RegisterCenter() {
       username: name,
       email,
       phone,
+      crNumber,
       password,
     };
 
@@ -79,6 +82,7 @@ export default function RegisterCenter() {
     setName("");
     setEmail("");
     setPhone("");
+    setCrNumber("");
     setPassword("");
     setConfirmPassword("");
   };
@@ -88,19 +92,19 @@ export default function RegisterCenter() {
       <div className="overlay">
         <div className="topbar">
           <div className="topbar-left">
-  <button className="icon-btn" onClick={() => setOpen(!open)}>
-    <FaBars />
-  </button>
+            <button className="icon-btn" onClick={() => setOpen(!open)}>
+              <FaBars />
+            </button>
 
-  <button
-    className="icon-btn"
-    onClick={() => navigate("/admin/profile")}
-    title="Admin Profile"
-    style={{ fontSize: "38px" }}
-  >
-    <FaRegUserCircle />
-  </button>
-</div>
+            <button
+              className="icon-btn"
+              onClick={() => navigate("/admin/profile")}
+              title="Admin Profile"
+              style={{ fontSize: "38px" }}
+            >
+              <FaRegUserCircle />
+            </button>
+          </div>
           <div className="topbar-center">
             <span
               className="nav-item"
@@ -145,7 +149,7 @@ export default function RegisterCenter() {
                 Messages
                 <MessageNotification />
               </div>
-              
+
             </div>
             <div className="sidebar-logout" onClick={() => navigate("/")}>
               <IoLogOutOutline style={{ marginRight: '8px' }} /> Logout
@@ -172,6 +176,13 @@ export default function RegisterCenter() {
                 className="input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="CR Number"
+                className="input"
+                value={crNumber}
+                onChange={(e) => setCrNumber(e.target.value)}
               />
               <input
                 type="tel"

@@ -10,6 +10,7 @@ import dns from "dns";
 dotenv.config();
 
 const app = express();
+const SERVER_URL = "http://localhost:3002";
 
 app.use(cors());
 // images chosen from the device are saved as text, so the request body can be bigger
@@ -58,6 +59,14 @@ const UserSchema = new mongoose.Schema({
     default: false,
   },
 
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
+
+  emailVerificationToken: String,
+  emailVerificationExpiry: Date,
+
   image: String,
   description: String,
   location: String,
@@ -78,6 +87,7 @@ const CenterSchema = new mongoose.Schema(
     centerName: String,
     email: String,
     phone: String,
+    crNumber: { type: String, required: true },
     image: String,
     isActive: String,
     location: String,
@@ -99,15 +109,80 @@ app.post("/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const newUser = new UserModel({
       username,
       email,
       phone,
       password: hashedPassword,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpiry: verificationExpiry,
     });
 
     await newUser.save();
+    const confirmUrl = `${SERVER_URL}/verify-email?token=${verificationToken}&action=yes`;
+    const rejectUrl = `${SERVER_URL}/verify-email?token=${verificationToken}&action=no`;
+
+    // Send Welcome Email
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "HCS - Confirm Your Registration",
+        html: `
+    <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+      <h2 style="color: #4F8577;">Welcome to Holistic Centers (HCS)!</h2>
+
+      <p>Hello ${username},</p>
+      <p>Your registration request has been received.</p>
+      <p>Do you want to confirm your registration?</p>
+
+      <a href="${confirmUrl}"
+         style="display: inline-block; background: #4F8577; color: white;
+                padding: 12px 28px; text-decoration: none;
+                border-radius: 8px; margin: 10px;">
+        Yes, Confirm
+      </a>
+
+      <a href="${rejectUrl}"
+         style="display: inline-block; background: #C75B52; color: white;
+                padding: 12px 28px; text-decoration: none;
+                border-radius: 8px; margin: 10px;">
+        No, Reject
+      </a>
+
+      <p style="color: #777; font-size: 12px;">
+        These links expire in 24 hours.
+      </p>
+
+      <p>Best regards,<br>HCS Support Team</p>
+    </div>
+  `,
+      });
+
+    } catch (emailError) {
+      console.error("Welcome Email Error:", emailError);
+
+      await UserModel.deleteOne({
+        _id: newUser._id,
+        isEmailVerified: false,
+      });
+
+      return res.status(500).send({
+        message: "Failed to send verification email. Please try again.",
+      });
+    }
 
     res.send({ message: "User Registered" });
   } catch (error) {
@@ -115,11 +190,61 @@ app.post("/register", async (req, res) => {
   }
 });
 
+// Email Verification API
+app.get("/verify-email", async (req, res) => {
+  try {
+    const { token, action } = req.query;
+
+    if (!token || !["yes", "no"].includes(action)) {
+      return res.status(400).send("Invalid verification link.");
+    }
+
+    const user = await UserModel.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpiry: { $gt: new Date() },
+      isEmailVerified: false,
+    });
+
+    if (!user) {
+      return res.status(400).send("Invalid or expired verification link.");
+    }
+
+    if (action === "yes") {
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpiry = undefined;
+
+      await user.save();
+
+      return res.send("Email confirmed successfully! You can now log in.");
+    }
+
+    if (action === "no") {
+
+      if (user.role === "center") {
+        await CenterModel.deleteOne({
+          email: user.email
+        });
+      }
+
+      await UserModel.deleteOne({
+        _id: user._id
+      });
+
+      return res.send("Registration rejected successfully.");
+    }
+
+  } catch (error) {
+    console.error("Email Verification Error:", error);
+    res.status(500).send("Email verification failed.");
+  }
+});
+
 
 // Register Center API
 app.post("/register-center", async (req, res) => {
   try {
-    const { username, email, phone, password } = req.body;
+    const { username, email, phone, crNumber, password } = req.body;
 
     const user = await UserModel.findOne({ email });
 
@@ -128,6 +253,8 @@ app.post("/register-center", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const newCenter = new UserModel({
       username,
@@ -135,17 +262,95 @@ app.post("/register-center", async (req, res) => {
       phone,
       password: hashedPassword,
       role: "center",
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpiry: verificationExpiry,
     });
 
     await newCenter.save();
-    await CenterModel.create({
+    const confirmUrl = `${SERVER_URL}/verify-email?token=${verificationToken}&action=yes`;
+    const rejectUrl = `${SERVER_URL}/verify-email?token=${verificationToken}&action=no`;
+
+    const centerRecord = await CenterModel.create({
       centerName: username,
       email,
       phone,
+      crNumber,
       image: "",
       isActive: "true",
       location: "",
     });
+
+    newCenter.centerId = centerRecord._id;
+    await newCenter.save();
+
+    // Send Welcome Email to Center
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "HCS - Confirm Your Center Registration",
+        html: `
+    <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+      <h2 style="color: #4F8577;">
+        Welcome to Holistic Centers (HCS)!
+      </h2>
+
+      <p>Hello ${username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")},</p>
+
+      <p>Your center registration request has been received.</p>
+      <p>Please confirm your email to activate your center account.</p>
+
+      <a href="${confirmUrl}"
+         style="display: inline-block; background: #4F8577;
+                color: white; padding: 12px 28px;
+                text-decoration: none; border-radius: 8px;
+                margin: 10px;">
+        Yes, Confirm
+      </a>
+
+      <a href="${rejectUrl}"
+         style="display: inline-block; background: #C75B52;
+                color: white; padding: 12px 28px;
+                text-decoration: none; border-radius: 8px;
+                margin: 10px;">
+        No, Reject
+      </a>
+
+      <p style="color: #777; font-size: 12px;">
+        These links expire in 24 hours.
+      </p>
+
+      <p>Best regards, HCS Support Team</p>
+    </div>
+  `,
+      });
+
+    } catch (emailError) {
+      console.error("Center Welcome Email Error:", emailError);
+
+      await CenterModel.deleteOne({
+        email: newCenter.email,
+      });
+
+      await UserModel.deleteOne({
+        _id: newCenter._id,
+        isEmailVerified: false,
+      });
+
+      return res.status(500).send({
+        message: "Failed to send verification email. Please try again.",
+      });
+    }
+
     res.send({ message: "success" });
   } catch (error) {
     res.send({ message: "Center Register Error: " + error.message });
@@ -164,6 +369,13 @@ app.post("/login", async (req, res) => {
     if (!user) {
       return res.send({
         message: "Invalid Email",
+      });
+    }
+
+    // Check Email Verification
+    if (user.isEmailVerified === false) {
+      return res.send({
+        message: "Please confirm your email before logging in.",
       });
     }
 
@@ -241,19 +453,70 @@ app.post("/forgot-password", async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Password Reset Code",
+      subject: "HCS - Reset Password",
       html: `
-        <h2>Password Reset</h2>
-        <p>Your verification code is:</p>
-        <h1>${code}</h1>
-        <p>This code expires in 15 minutes.</p>
-      `,
+    <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+      <h2 style="color: #4F8577;">Reset Your Password</h2>
+      <p>We received a request to reset your password.</p>
+      <p>Your verification code is:</p>
+      <h1 style="color: #4F8577;">${code}</h1>
+      <p>This code expires in 15 minutes.</p>
+      <p>If you did not request this, please ignore this email.</p>
+      <p>Best regards,<br>HCS Support Team</p>
+    </div>
+  `,
     });
 
     res.send({ message: "Reset code sent successfully" });
 
   } catch (error) {
     res.send({ message: "Email Error: " + error.message });
+  }
+});
+
+// Request to Join API
+app.post("/request-to-join", async (req, res) => {
+  try {
+    const { centerName, centerEmail, phoneNumber, crNumber } = req.body;
+
+    if (!centerName || !centerEmail || !phoneNumber || !crNumber) {
+      return res.status(400).json({
+        message: "All fields are required"
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "holisticcentersupport@gmail.com",
+      replyTo: centerEmail,
+      subject: "New Center Registration Request - HCS",
+      text: `
+New Request to Join
+
+Center Name: ${centerName}
+Center Email: ${centerEmail}
+Phone Number: ${phoneNumber}
+CR Number: ${crNumber}
+      `,
+    });
+
+    res.json({
+      message: "Request sent successfully"
+    });
+
+  } catch (error) {
+    console.error("Request to Join Error:", error);
+    res.status(500).json({
+      message: "Failed to send request"
+    });
   }
 });
 

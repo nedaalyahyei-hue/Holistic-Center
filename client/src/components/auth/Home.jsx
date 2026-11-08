@@ -10,6 +10,8 @@ import AlYahyeai from "../../assets/AlYahyeai.jpeg";
 export default function Home() {
   const [lang, setLang] = useState("en");
   const [darkMode, setDarkMode] = useState(false);
+  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState({
     centers: [],
@@ -67,6 +69,47 @@ export default function Home() {
   };
 
   const current = t[lang];
+  const handleJoinRequest = async (e) => {
+    e.preventDefault();
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    const requestData = {
+      centerName: formData.get("centerName"),
+      centerEmail: formData.get("centerEmail"),
+      phoneNumber: formData.get("phoneNumber"),
+      crNumber: formData.get("crNumber"),
+    };
+
+    setSendingRequest(true);
+
+    try {
+      const response = await fetch("http://localhost:3002/request-to-join", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.message || "Failed to send request");
+        return;
+      }
+
+      alert("Your request has been sent successfully!");
+      form.reset();
+      setShowJoinForm(false);
+
+    } catch (error) {
+      alert("Cannot connect to server");
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   const filteredCenters = !searchTerm.trim()
     ? centers
@@ -121,8 +164,21 @@ export default function Home() {
 
         </ul>
         <div className="nav-tools">
-          <span className="tool-icon" onClick={() => setDarkMode(!darkMode)}>{darkMode ? "☀️" : "🌙"}</span>
-          <span className="tool-icon" onClick={() => setLang(lang === "en" ? "ar" : "en")}>🌐</span>
+          <button
+            type="button"
+            className="request-join-btn"
+            onClick={() => setShowJoinForm(true)}
+          >
+            {lang === "en" ? "Request to Join" : "طلب الانضمام"}
+          </button>
+
+          <span className="tool-icon" onClick={() => setDarkMode(!darkMode)}>
+            {darkMode ? "☀️" : "🌙"}
+          </span>
+
+          <span className="tool-icon" onClick={() => setLang(lang === "en" ? "ar" : "en")}>
+            🌐
+          </span>
         </div>
       </nav>
 
@@ -195,6 +251,64 @@ export default function Home() {
           <span>📞</span><span>🔗</span><span>📸</span><span>📘</span><span>▶️</span>
         </div>
       </footer>
+      {showJoinForm && (
+        <div className="join-modal-overlay">
+          <div className="join-modal">
+            <button
+              type="button"
+              className="join-close-btn"
+              onClick={() => setShowJoinForm(false)}
+            >
+              ×
+            </button>
+
+            <h2>Request to Join</h2>
+            <p>Enter your center details to request registration.</p>
+
+            <form onSubmit={handleJoinRequest}>
+              <label>Center Name</label>
+              <input
+                type="text"
+                name="centerName"
+                placeholder="Center Name"
+                required
+              />
+
+              <label>Center Email</label>
+              <input
+                type="email"
+                name="centerEmail"
+                placeholder="Center Email"
+                required
+              />
+
+              <label>Phone Number</label>
+              <input
+                type="tel"
+                name="phoneNumber"
+                placeholder="Phone Number"
+                required
+              />
+
+              <label>CR Number</label>
+              <input
+                type="text"
+                name="crNumber"
+                placeholder="Commercial Registration Number"
+                required
+              />
+
+              <button
+                type="submit"
+                className="join-send-btn"
+                disabled={sendingRequest}
+              >
+                {sendingRequest ? "Sending..." : "Send Request"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
