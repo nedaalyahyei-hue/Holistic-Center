@@ -185,7 +185,7 @@ export default function CustomerLayout({ children }) {
                 fontSize: "18px",
               }}
             >
-              Booking History
+              Manage Booking
 
               {unreadRefunds > 0 && (
                 <span

@@ -4,7 +4,7 @@ import CustomerLayout from "./CustomerLayout";
 import "./Customer.css";
 import { FaRegStar, FaStar } from "react-icons/fa";
 
-export default function AppointmentsHistory() {
+export default function AppointmentsHistory({ embedded = false }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -294,10 +294,9 @@ export default function AppointmentsHistory() {
       return String(bookingId) === String(booking._id);
     });
 
-  return (
-    <CustomerLayout>
-      <div className="history-content">
-        <h1>Booking History</h1>
+  const content = (
+  <div className="history-content">
+        <h1>Manage Booking</h1>
 
         {loading ? (
           <p>Loading bookings...</p>
@@ -553,7 +552,8 @@ export default function AppointmentsHistory() {
             );
           })
         )}
-      </div>
-    </CustomerLayout>
-  );
+        </div>
+);
+
+return embedded ? content : <CustomerLayout>{content}</CustomerLayout>;
 }

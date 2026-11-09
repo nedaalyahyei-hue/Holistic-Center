@@ -1494,3 +1494,8 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 .history-card-actions .history-btn {
   border-radius: 8px;
 }
+
+/* Keep Manage Booking spacing normal inside Dashboard */
+.user-dashboard-content .history-card p {
+  margin: 4px 0;
+}

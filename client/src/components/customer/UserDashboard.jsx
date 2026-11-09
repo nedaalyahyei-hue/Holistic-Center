@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MdOutlineCalendarMonth } from "react-icons/md";
 import { FaHospital } from "react-icons/fa";
+import AppointmentsHistory from "./AppointmentsHistory";
 import {
   ResponsiveContainer,
   BarChart,
@@ -100,125 +101,108 @@ export default function UserDashboard() {
         <p>Manage Your Holistic Centers System</p>
 
         <div className="user-dashboard-cards">
-          {/* Total Bookings */}
           <div
             className="user-dashboard-card clickable-dashboard-card"
-            onClick={() => navigate("/customer/history")}
+            onClick={() =>
+              setActiveCard(activeCard === "booking" ? "" : "booking")
+            }
           >
             <MdOutlineCalendarMonth className="user-dashboard-icon" />
-            <p>My Bookings</p>
-            <h3>{loading ? "..." : bookings.length}</h3>
+            <p>User Booking and Analysis</p>
+          </div>
           </div>
 
-          {/* Centers Visited */}
-          <div
-            className="user-dashboard-card clickable-dashboard-card"
-            onClick={() => setActiveCard(activeCard === "center" ? "" : "center")}
-          >
-            <FaHospital className="user-dashboard-icon" />
-            <p>My Booking Activity</p>
-            <h3>
-              {loading
-                ? "..."
-                : new Set(
-                  bookings
-                    .map(
-                      (booking) =>
-                        booking.centerId?._id ||
-                        booking.centerName
-                    )
-                    .filter(Boolean)
-                ).size}
-            </h3>
-          </div>
-        </div>
-
-        {/* Bookings Chart */}
-        {activeCard === "center" && (
-          <div
-            className="dashboard-record-box"
-            style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              padding: "30px",
-              boxShadow: "0 6px 20px rgba(0, 0, 0, 0.12)",
-              maxWidth: "900px",
-              height: "auto",
-              minHeight: "0",
-              margin: "30px auto",
-              boxSizing: "border-box",
-            }}
-          >
+          {/* Bookings Chart */}
+          {activeCard === "booking" && (
             <div
+              className="dashboard-record-box"
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "15px",
-                marginBottom: "25px",
+                backgroundColor: "#ffffff",
+                borderRadius: "16px",
+                padding: "30px",
+                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.12)",
+                maxWidth: "900px",
+                height: "auto",
+                minHeight: "0",
+                margin: "30px auto",
+                boxSizing: "border-box",
               }}
             >
-              <h2 style={{ margin: 0 }}>My Bookings by Center</h2>
-
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                disabled={years.length === 0}
+              <div
                 style={{
-                  padding: "10px 15px",
-                  borderRadius: "8px",
-                  border: "1px solid #76a37b",
-                  backgroundColor: "white",
-                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "15px",
+                  marginBottom: "25px",
                 }}
               >
-                {years.length === 0 ? (
-                  <option value={selectedYear}>{selectedYear}</option>
-                ) : (
-                  years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
+                <h2 style={{ margin: 0 }}>My Bookings by Center</h2>
 
-            {loading ? (
-              <p>Loading dashboard...</p>
-            ) : chartData.length === 0 ? (
-              <p>No bookings found for this year.</p>
-            ) : (
-              <div style={{ width: "100%", height: 360 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={chartData}
-                    margin={{ top: 15, right: 20, left: 0, bottom: 35 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="center"
-                      interval={0}
-                      angle={-15}
-                      textAnchor="end"
-                      height={65}
-                    />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar
-                      dataKey="bookings"
-                      name="Bookings"
-                      fill="#76a37b"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={75}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  disabled={years.length === 0}
+                  style={{
+                    padding: "10px 15px",
+                    borderRadius: "8px",
+                    border: "1px solid #76a37b",
+                    backgroundColor: "white",
+                    cursor: "pointer",
+                  }}
+                >
+                  {years.length === 0 ? (
+                    <option value={selectedYear}>{selectedYear}</option>
+                  ) : (
+                    years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
-            )}
-          </div>
+
+              {loading ? (
+                <p>Loading dashboard...</p>
+              ) : chartData.length === 0 ? (
+                <p>No bookings found for this year.</p>
+              ) : (
+                <div style={{ width: "100%", height: 360 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 15, right: 20, left: 0, bottom: 35 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="center"
+                        interval={0}
+                        angle={-15}
+                        textAnchor="end"
+                        height={65}
+                      />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar
+                        dataKey="bookings"
+                        name="Bookings"
+                        fill="#76a37b"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={75}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+                  )}
+
+        {activeCard === "booking" && (
+          <AppointmentsHistory embedded={true} />
         )}
+
       </div>
     </CustomerLayout>
   );
