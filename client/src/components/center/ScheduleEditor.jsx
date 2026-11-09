@@ -55,7 +55,21 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
   const removeSlot = (i) => setSlots(slots.filter((_, idx) => idx !== i));
 
   const problem = slotsProblem(slots, duration);
+  const closingProblem = Number.isFinite(duration) && duration > 0 &&
+    slots.some((s) => {
+      if (!/^\d{2}:\d{2}$/.test(s.start || "")) return false;
+
+      const start = toMinutes(s.start);
+      const calculatedEnd = calcEnd(s.start, duration);
+      if (!/^\d{2}:\d{2}$/.test(calculatedEnd || "")) return false;
+
+      const end = toMinutes(calculatedEnd);
+
+      return start < 480 || end > 1320;
+    });
   const liveProblem = LIVE_PROBLEMS.includes(problem) ? problem : null;
+
+
 
   return (
     <div className="form-group">
@@ -163,6 +177,18 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
           margin: "8px 0",
         }}>
           {t(liveProblem)}
+        </p>
+      )}
+
+
+      {closingProblem && (
+        <p style={{
+          color: "#c0392b",
+          fontSize: "14px",
+          margin: "8px 0",
+          fontWeight: "bold",
+        }}>
+          {t("slotOutsideWorkingHours")}
         </p>
       )}
 

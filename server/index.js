@@ -735,7 +735,8 @@ app.put("/center/:id", async (req, res) => {
     }
 
     const result = await UserModel.findById(center._id).select("-password -resetCode -resetCodeExpiry");
-    res.send({ message: "success", center: await centerProfileData(result) });  } catch (error) {
+    res.send({ message: "success", center: await centerProfileData(result) });
+  } catch (error) {
     res.send({ message: "Update Center Error: " + error.message });
   }
 });
@@ -1299,12 +1300,26 @@ const toMin = (time) => {
 };
 
 function checkSlots(slots, duration) {
-  if (!Array.isArray(slots) || slots.length === 0) return "Add at least one time slot";
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return "At least one time slot is required";
+  }
 
   for (const s of slots) {
-    if (!TIME_RE.test(s.start || "") || !TIME_RE.test(s.end || "")) return "Invalid time format";
-    if (s.start >= s.end) return "Slot end time must be after start time";
-    if (!s.doctor || !s.doctor.trim()) return "Each slot needs a doctor name";
+    if (!TIME_RE.test(s.start || "") || !TIME_RE.test(s.end || "")) {
+      return "Invalid time format";
+    }
+
+    if (s.start >= s.end) {
+      return "Slot end time must be after start time";
+    }
+
+    if (!s.doctor || !s.doctor.trim()) {
+      return "Each slot needs a doctor name";
+    }
+
+    if (toMin(s.start) < 8 * 60 || toMin(s.end) > 22 * 60) {
+      return "Appointments must start at or after 08:00 AM and finish by 10:00 PM";
+    }
   }
 
   // the same doctor cannot have two overlapping slots
