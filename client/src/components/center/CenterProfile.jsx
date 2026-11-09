@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import "./Center.css";
 import { useNavigate } from "react-router-dom";
@@ -23,8 +22,6 @@ const cleanLocations = (list) =>
     }))
     .filter((l) => l.name || l.mapUrl);
 
-
-
 // phone number: 8 digits, numbers only, starts with 9 or 7
 const phoneFormatProblem = (value) => {
   if (!/^\d{8}$/.test(value) || !/^[79]/.test(value)) {
@@ -43,11 +40,11 @@ const locationsProblem = (rows) => {
 
 export default function CenterProfile() {
   const navigate = useNavigate();
-  const { t, ts } = useLang();
+  const { t, ts, lang } = useLang();
 
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Only the name and the email come from the login data (they never change).
+  // Name, email and CR number are fixed: the center cannot change them.
   // Everything else is loaded from the server, so an old copy can never overwrite the saved data.
   const [center, setCenter] = useState({
     username: user?.username || "",
@@ -62,17 +59,16 @@ export default function CenterProfile() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [phoneError, setPhoneError] = useState(""); // translation key
+  const [phoneError, setPhoneError] = useState("");
   const [locError, setLocError] = useState(""); // translation key
   const [toast, setToast] = useState({ text: "", type: "success" });
 
   // what is saved in the database right now
-  const savedData = useRef({ phone: "", cr: "", image: "", description: "", locations: [] });
+  const savedData = useRef({ phone: "", image: "", description: "", locations: [] });
 
   const applyServerData = (c) => {
     const data = {
       phone: c.phone || "",
-      cr: c.cr || "",
       image: c.image || "",
       description: c.description || "",
       locations: (c.locations || []).map((l) => ({
@@ -85,7 +81,8 @@ export default function CenterProfile() {
 
     setCenter((prev) => ({
       ...prev,
-      cr: data.cr,
+      // the CR number is entered by the admin when the center is registered
+      cr: c.crNumber || "",
       username: c.username || prev.username,
       email: c.email || prev.email,
       phone: data.phone,
@@ -171,7 +168,7 @@ export default function CenterProfile() {
         JSON.stringify({
           ...user,
           phone: c.phone,
-          cr: c.cr,
+          crNumber: c.crNumber,
           image,
           description: c.description,
           locations: c.locations,
@@ -184,10 +181,6 @@ export default function CenterProfile() {
 
   const handleSave = async () => {
     if (!loaded || saving) return;
-    if (!center.cr.trim()) {
-      setToast({ text: "CR Number is required", type: "error" });
-      return;
-    }
 
     const pKey = phoneKey(center.phone);
     const rows = cleanLocations(locations);
@@ -204,7 +197,6 @@ export default function CenterProfile() {
     const saved = savedData.current;
     const body = {};
     if (center.phone !== saved.phone) body.phone = center.phone;
-    if (center.cr !== saved.cr) body.cr = center.cr.trim();
     if (center.image !== saved.image) body.image = center.image;
     if (center.description !== saved.description) body.description = center.description;
     if (JSON.stringify(rows) !== JSON.stringify(cleanLocations(saved.locations))) body.locations = rows;
@@ -243,6 +235,8 @@ export default function CenterProfile() {
   };
 
   const canSave = loaded && !saving;
+  const isAr = lang === "ar";
+  const lockedStyle = { background: "#f5f5f5", cursor: "not-allowed", color: "#555" };
 
   return (
     <CenterShell active="profile">
@@ -280,13 +274,27 @@ export default function CenterProfile() {
         <div className="form-group">
           <label className="card-label">{t("centerName")}</label>
           <input type="text" className="styled-input" value={center.username} readOnly disabled
-            style={{ background: "#f5f5f5", cursor: "not-allowed", color: "#555" }} />
+            style={lockedStyle} />
         </div>
 
         <div className="form-group">
           <label className="card-label">{t("email")}</label>
           <input type="email" className="styled-input" value={center.email} readOnly disabled
-            style={{ background: "#f5f5f5", cursor: "not-allowed", color: "#555" }} />
+            style={lockedStyle} />
+        </div>
+
+        {/* The CR number is entered by the admin: the center can only see it */}
+        <div className="form-group">
+          <label className="card-label">{isAr ? "رقم السجل التجاري (CR)" : "CR Number"}</label>
+          <input
+            type="text"
+            className="styled-input"
+            value={center.cr}
+            readOnly
+            disabled
+            placeholder={isAr ? "لم يسجّله الأدمن بعد" : "Not set by the admin yet"}
+            style={lockedStyle}
+          />
         </div>
 
         <div className="form-group">
@@ -305,20 +313,6 @@ export default function CenterProfile() {
             style={phoneError ? { border: "1px solid #c0392b" } : undefined}
           />
           <FieldError text={phoneError} />
-        </div>
-
-        <div className="form-group">
-          <label className="card-label">CR Number <Req /></label>
-          <input
-            type="text"
-            name="cr"
-            className="styled-input"
-            value={center.cr}
-            onChange={handleChange}
-            placeholder="Enter CR Number"
-            disabled={!loaded}
-            required
-          />
         </div>
 
         <div className="form-group">

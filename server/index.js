@@ -552,7 +552,7 @@ app.post("/reset-password", async (req, res) => {
 
 // ================= Center Profile =================
 
-// Get center data (without password)
+// Get center data (without password) + the CR number the admin registered
 app.get("/center/:id", async (req, res) => {
   try {
     const center = await UserModel.findOne({
@@ -562,7 +562,7 @@ app.get("/center/:id", async (req, res) => {
 
     if (!center) return res.send({ message: "Center not found" });
 
-    res.send({ message: "success", center });
+    res.send({ message: "success", center: await centerProfileData(center) });
   } catch (error) {
     res.send({ message: "Get Center Error: " + error.message });
   }
@@ -595,12 +595,25 @@ async function syncCenterRecord(user) {
   const record = await findCenterRecord(user);
   if (!record) return;
 
-  if (user.phone) record.phone = user.phone;
-  record.image = user.image || "";
-  record.location = (user.locations || []).map((l) => l.name).join(", ");
-  if (!record.email && user.email) record.email = user.email;
+  const set = {
+    image: user.image || "",
+    location: (user.locations || []).map((l) => l.name).join(", "),
+  };
+  if (user.phone) set.phone = user.phone;
+  if (!record.email && user.email) set.email = user.email;
 
-  await record.save();
+  // updateOne does not run the "required" check, so older records without a CR number still sync
+  await CenterModel.updateOne({ _id: record._id }, { $set: set });
+}
+
+
+// Profile data of a center account + its CR number.
+// The CR number is entered by the admin when the center is registered (CENTER record).
+async function centerProfileData(user) {
+  let record = user.centerId ? await CenterModel.findById(user.centerId) : null;
+  if (!record) record = await findCenterRecord(user);
+
+  return { ...user.toObject(), crNumber: record?.crNumber || "" };
 }
 
 // Only what the center sends is changed. Everything else stays exactly as it is saved.
@@ -722,8 +735,7 @@ app.put("/center/:id", async (req, res) => {
     }
 
     const result = await UserModel.findById(center._id).select("-password -resetCode -resetCodeExpiry");
-    res.send({ message: "success", center: result });
-  } catch (error) {
+    res.send({ message: "success", center: await centerProfileData(result) });  } catch (error) {
     res.send({ message: "Update Center Error: " + error.message });
   }
 });
@@ -1054,10 +1066,10 @@ app.post("/doctors", async (req, res) => {
 
     if (!mongoose.isValidObjectId(centerId)) return res.send({ message: "Invalid center" });
 
-    const cleanName = (name || "").replace(/\\s+/g, " ").trim();
+    const cleanName = (name || "").replace(/\s+/g, " ").trim();
     if (!cleanName) return res.send({ message: "Doctor name is required" });
 
-    const cleanSpecialty = (specialty || "").replace(/\\s+/g, " ").trim();
+    const cleanSpecialty = (specialty || "").replace(/\s+/g, " ").trim();
     if (cleanSpecialty.length < 2) return res.send({ message: "Specialty is required" });
 
     const center = await UserModel.findOne({ _id: centerId, role: "center" });
