@@ -372,8 +372,8 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    // Check Email Verification
-    if (user.isEmailVerified === false) {
+    // Check Email Verification for center and user
+    if (["customer", "center"].includes(user.role?.toLowerCase()) && user.isEmailVerified === false) {
       return res.send({
         message: "Please confirm your email before logging in.",
       });
