@@ -38,6 +38,11 @@ export default function UpdateUserProfile() {
     e.preventDefault();
     setMessage("");
 
+        if (!/^[97][0-9]{7}$/.test(phone)) {
+      setMessage("Phone number must be 8 digits and start with 9 or 7");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setMessage("New passwords do not match");
       return;
