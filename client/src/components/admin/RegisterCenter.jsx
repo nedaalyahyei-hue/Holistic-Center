@@ -78,7 +78,7 @@ export default function RegisterCenter() {
       return;
     }
 
-    setMessage("Center registered successfully!");
+    setMessage("A confirmation email has been sent. Please check your email and confirm your account.");
     setName("");
     setEmail("");
     setPhone("");
@@ -172,7 +172,7 @@ export default function RegisterCenter() {
               />
               <input
                 type="email"
-                placeholder="centername@gmail.om"
+                placeholder="centername@gmail.com"
                 className="input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

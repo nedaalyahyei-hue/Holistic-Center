@@ -29,8 +29,7 @@ const Register = () => {
       setMessage(result.message);
 
       if (result.message === "User Registered") {
-        alert("Registration successful");
-        navigate("/login");
+        setMessage("Please check your email and verify your account before logging in.");
       }
     } catch (error) {
       setMessage("Server Error");
@@ -45,7 +44,9 @@ const Register = () => {
 
           <h2 className="register-heading">Registration</h2>
 
-          <h5 style={{ color: "red" }}>{message}</h5>
+          <h5 style={{ color: message.includes("verify your account") ? "green" : "red" }}>
+            {message}
+          </h5>
 
           <form onSubmit={submitForm(handleSubmit)}>
             <div className="register-input-wrap">

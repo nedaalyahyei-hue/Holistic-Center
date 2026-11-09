@@ -3,9 +3,9 @@ import * as yup from "yup";
 const RegisterValidation = yup.object().shape({
   username: yup
     .string()
-    .required("Username is required")
-    .max(10, "Username must not exceed 10 characters")
-    .matches(/^[A-Za-z0-9]+$/, "Username must contain letters or numbers only"),
+    .required("Center name is required")
+    .max(50, "Center name must not exceed 50 characters")
+    .matches(/^[A-Za-z0-9 ]+$/,"Center name must contain letters, numbers, or spaces only"),
 
   email: yup
     .string()
