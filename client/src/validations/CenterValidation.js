@@ -7,8 +7,8 @@ const CenterValidation = RegisterValidation.shape({
         .string()
         .required("Email is required")
         .matches(
-            /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.om$/,
-            "Email must end with .om"
+            /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.com$/,
+            "Email must end with .com"
         ),
 
     crNumber: yup
