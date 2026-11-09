@@ -23,6 +23,8 @@ const cleanLocations = (list) =>
     }))
     .filter((l) => l.name || l.mapUrl);
 
+
+
 // phone number: 8 digits, numbers only, starts with 9 or 7
 const phoneFormatProblem = (value) => {
   if (!/^\d{8}$/.test(value) || !/^[79]/.test(value)) {
@@ -51,6 +53,7 @@ export default function CenterProfile() {
     username: user?.username || "",
     email: user?.email || "",
     phone: "",
+    cr: "",
     image: "",
     description: "",
   });
@@ -64,11 +67,12 @@ export default function CenterProfile() {
   const [toast, setToast] = useState({ text: "", type: "success" });
 
   // what is saved in the database right now
-  const savedData = useRef({ phone: "", image: "", description: "", locations: [] });
+  const savedData = useRef({ phone: "", cr: "", image: "", description: "", locations: [] });
 
   const applyServerData = (c) => {
     const data = {
       phone: c.phone || "",
+      cr: c.cr || "",
       image: c.image || "",
       description: c.description || "",
       locations: (c.locations || []).map((l) => ({
@@ -81,6 +85,7 @@ export default function CenterProfile() {
 
     setCenter((prev) => ({
       ...prev,
+      cr: data.cr,
       username: c.username || prev.username,
       email: c.email || prev.email,
       phone: data.phone,
@@ -166,6 +171,7 @@ export default function CenterProfile() {
         JSON.stringify({
           ...user,
           phone: c.phone,
+          cr: c.cr,
           image,
           description: c.description,
           locations: c.locations,
@@ -178,6 +184,10 @@ export default function CenterProfile() {
 
   const handleSave = async () => {
     if (!loaded || saving) return;
+    if (!center.cr.trim()) {
+      setToast({ text: "CR Number is required", type: "error" });
+      return;
+    }
 
     const pKey = phoneKey(center.phone);
     const rows = cleanLocations(locations);
@@ -194,6 +204,7 @@ export default function CenterProfile() {
     const saved = savedData.current;
     const body = {};
     if (center.phone !== saved.phone) body.phone = center.phone;
+    if (center.cr !== saved.cr) body.cr = center.cr.trim();
     if (center.image !== saved.image) body.image = center.image;
     if (center.description !== saved.description) body.description = center.description;
     if (JSON.stringify(rows) !== JSON.stringify(cleanLocations(saved.locations))) body.locations = rows;
@@ -294,6 +305,20 @@ export default function CenterProfile() {
             style={phoneError ? { border: "1px solid #c0392b" } : undefined}
           />
           <FieldError text={phoneError} />
+        </div>
+
+        <div className="form-group">
+          <label className="card-label">CR Number <Req /></label>
+          <input
+            type="text"
+            name="cr"
+            className="styled-input"
+            value={center.cr}
+            onChange={handleChange}
+            placeholder="Enter CR Number"
+            disabled={!loaded}
+            required
+          />
         </div>
 
         <div className="form-group">
