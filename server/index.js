@@ -1548,6 +1548,32 @@ BookingSchema.index(
 
 const BookingModel = mongoose.model("BOOKING", BookingSchema, "BOOKING");
 
+// Get all bookings of one center
+app.get("/bookings/center/:centerId", async (req, res) => {
+  try {
+    const { centerId } = req.params;
+
+    if (!mongoose.isValidObjectId(centerId)) {
+      return res.status(400).json({ message: "Invalid center ID" });
+    }
+
+    const bookings = await BookingModel.find({
+      centerId: centerId,
+    }).sort({ date: -1, createdAt: -1 });
+
+    res.json({
+      message: "success",
+      bookings,
+    });
+  } catch (error) {
+    console.error("Get Center Bookings Error:", error);
+    res.status(500).json({
+      message: "Failed to load center bookings",
+    });
+  }
+});
+
+
 // Slots of a treatment on a specific date, with booked flag
 app.get("/treatments/:id/availability/:date", async (req, res) => {
   try {

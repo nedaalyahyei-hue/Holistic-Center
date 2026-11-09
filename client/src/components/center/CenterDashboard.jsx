@@ -58,7 +58,7 @@ const getReviewTime = (createdAt) => {
 
   if (isNaN(reviewDate.getTime())) return "";
 
-  if (diff < 60000) return "الآن";
+  if (diff < 60000) return "Just now";
 
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
@@ -66,13 +66,20 @@ const getReviewTime = (createdAt) => {
   const months = Math.floor(days / 30);
   const years = Math.floor(days / 365);
 
-  if (minutes < 60) return `Before ${minutes} minute`;
-  if (hours < 24) return `Before ${hours} hour`;
-  if (days === 1) return " Yesterday";
-  if (days < 30) return `Before ${days} days`;
-  if (months < 12) return ` ${months} Months ago`;
+  if (minutes < 60) {
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+
+  if (hours < 24) {
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days} days ago`;
+  if (months < 12) return `${months} ${months === 1 ? "month" : "months"} ago`;
   if (years === 1) return "A year ago";
-  return `${years} Years ago`;
+
+  return `${years} years ago`;
 };
 
 export default function CenterDashboard() {
@@ -105,7 +112,7 @@ export default function CenterDashboard() {
       }
     };
 
-   
+
     const loadFeedbacks = async () => {
       try {
         const res = await fetch(
@@ -702,7 +709,7 @@ export default function CenterDashboard() {
                   </div>
                 </div>
 
-               
+
                 <div style={{ overflowX: "auto", marginTop: "20px" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
