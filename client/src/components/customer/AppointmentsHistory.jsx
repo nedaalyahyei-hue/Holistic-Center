@@ -295,265 +295,269 @@ export default function AppointmentsHistory({ embedded = false }) {
     });
 
   const content = (
-  <div className="history-content">
-        <h1>Manage Booking</h1>
+    <div className="history-content">
+      <h1>Manage Booking</h1>
 
-        {loading ? (
-          <p>Loading bookings...</p>
-        ) : bookings.length === 0 ? (
-          <p>No bookings found.</p>
-        ) : (
-          bookings.map((booking) => {
-            const bookingRefunds = getBookingRefunds(booking);
-            const hasPendingRefund = bookingRefunds.some(
-              (refund) => refund.status?.toLowerCase() === "pending"
-            );
-            const isCancelled = booking.status === "cancelled";
+      {loading ? (
+        <p>Loading bookings...</p>
+      ) : bookings.length === 0 ? (
+        <p>No bookings found.</p>
+      ) : (
+        bookings.map((booking) => {
+          const bookingRefunds = getBookingRefunds(booking);
+          const hasPendingRefund = bookingRefunds.some(
+            (refund) => refund.status?.toLowerCase() === "pending"
+          );
+          const isCancelled = booking.status === "cancelled";
 
-            return (
-              <div className="history-wrapper" key={booking._id}>
-                <h2>Order Summary</h2>
+          return (
+            <div className="history-wrapper" key={booking._id}>
+              <h2>Order Summary</h2>
 
 
-                <div className="history-card">
+              <div className="history-card">
+                <p>
+                  <strong>Center:</strong> {booking.centerName || "Unknown Center"}
+                </p>
+
+                <p>
+                  <strong>{booking.treatmentName}</strong>
+                </p>
+                <p>Date: {booking.date}</p>
+                <p>Time: {booking.slotStart || booking.time || "N/A"}</p>
+                <p>
+                  Price: <span>{booking.price} OMR</span>
+                </p>
+
+                {isCancelled && (
                   <p>
-                    <strong>{booking.treatmentName}</strong>
+                    Booking Status: <strong>Cancelled</strong>
                   </p>
-                  <p>Date: {booking.date}</p>
-                  <p>Time: {booking.slotStart || booking.time || "N/A"}</p>
-                  <p>
-                    Price: <span>{booking.price} OMR</span>
-                  </p>
-
-                  {isCancelled && (
-                    <p>
-                      Booking Status: <strong>Cancelled</strong>
-                    </p>
-                  )}
-
-                  {bookingRefunds.map((refund) => (
-                    <p key={refund._id}>
-                      Refund Status: <strong>{refund.status}</strong>
-                    </p>
-                  ))}
-
-                  {!isCancelled && editingId !== booking._id && (
-                    <div className="history-card-actions">
-                      <button
-                        className="history-btn"
-                        onClick={() => startEdit(booking)}
-                      >
-                        Edit Booking
-                      </button>
-
-                      <button
-                        className="history-btn"
-                        disabled={hasPendingRefund}
-                        onClick={() => {
-                          setRefundingId(booking._id);
-                          setRefundReason("");
-                          setRefundError("");
-                          setRefundSuccess("");
-                        }}
-                      >
-                        {hasPendingRefund
-                          ? "Cancel & Refund Request Pending"
-                          : "Request Cancel & Refund"}
-                      </button>
-
-                      <button
-                        className="history-btn"
-                        onClick={() => setReviewingId(booking._id)}
-                      >
-                        Write a Review
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {editingId === booking._id && !isCancelled ? (
-                  <div className="history-card history-edit-card">
-                    <h3>Edit Booking</h3>
-
-                    <p>Select New Date:</p>
-                    <input
-                      type="date"
-                      value={editDate}
-                      min={new Date().toLocaleDateString("en-CA")}
-                      onChange={(e) => setEditDate(e.target.value)}
-                    />
-
-                    <p>Select New Time:</p>
-                    <div className="booking-time-slots">
-                      {slots.length === 0 ? (
-                        <p>No available time slots.</p>
-                      ) : (
-                        slots.map((slot) => {
-                          const isCurrentSlot =
-                            editDate === booking.date &&
-                            slot.start === booking.slotStart;
-
-                          const unavailable = slot.booked && !isCurrentSlot;
-
-                          return (
-                            <button
-                              key={slot.start}
-                              type="button"
-                              disabled={unavailable}
-                              className={editSlot === slot.start ? "selected" : ""}
-                              onClick={() => setEditSlot(slot.start)}
-                              style={
-                                unavailable
-                                  ? {
-                                    backgroundColor: "#e0e0e0",
-                                    color: "#888",
-                                    cursor: "not-allowed",
-                                  }
-                                  : {}
-                              }
-                            >
-                              {slot.start}
-                              {unavailable ? " (Booked)" : ""}
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {error && <p style={{ color: "red" }}>{error}</p>}
-
-                    <div className="history-edit-actions">
-                      <button
-                        className="history-btn"
-                        onClick={saveChanges}
-                        disabled={!editSlot || saving}
-                      >
-                        {saving ? "Saving..." : "Save Changes"}
-                      </button>
-
-                      <button
-                        className="history-btn"
-                        onClick={() => setEditingId(null)}
-                        disabled={saving}
-                      >
-                        Back
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {!isCancelled && refundingId === booking._id && (
-                      <div className="history-card history-edit-card">
-                        <h3>Request Cancel & Refund</h3>
-                        <p>Reason for Cancellation:</p>
-
-                        <textarea
-                          value={refundReason}
-                          onChange={(e) => setRefundReason(e.target.value)}
-                          placeholder="Enter your reason..."
-                          rows={4}
-                          style={{
-                            width: "100%",
-                            padding: "12px",
-                            borderRadius: "8px",
-                            border: "1px solid #76a37b",
-                            boxSizing: "border-box",
-                            resize: "vertical",
-                          }}
-                        />
-
-                        {refundError && (
-                          <p style={{ color: "red" }}>{refundError}</p>
-                        )}
-
-                        <div className="history-edit-actions">
-                          <button
-                            className="history-btn"
-                            onClick={submitRefundRequest}
-                            disabled={!refundReason.trim() || refundSaving}
-                          >
-                            {refundSaving ? "Submitting..." : "Submit Request"}
-                          </button>
-
-                          <button
-                            className="history-btn"
-                            onClick={() => {
-                              setRefundingId(null);
-                              setRefundReason("");
-                              setRefundError("");
-                            }}
-                            disabled={refundSaving}
-                          >
-                            Back
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-                {reviewingId === booking._id && (
-                  <div className="history-card history-edit-card">
-                    <h3>Write a Review</h3>
-
-                    <div className="rating-stars">
-                      {[1, 2, 3, 4, 5].map((star) =>
-                        star <= reviewRating ? (
-                          <FaStar
-                            key={star}
-                            className="star-icon active-star"
-                            onClick={() => setReviewRating(star)}
-                          />
-                        ) : (
-                          <FaRegStar
-                            key={star}
-                            className="star-icon"
-                            onClick={() => setReviewRating(star)}
-                          />
-                        )
-                      )}
-                    </div>
-
-                    <textarea
-                      className="review-textarea"
-                      placeholder="Share your experience..."
-                      value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
-                    />
-
-                    {reviewError && (
-                      <p style={{ color: "red" }}>{reviewError}</p>
-                    )}
-
-                    <div className="history-card-actions">
-                      <button
-                        className="history-btn"
-                        disabled={reviewSaving}
-                        onClick={submitReview}
-                      >
-                        {reviewSaving ? "Sending..." : "Send Review"}
-                      </button>
-
-                      <button
-                        className="history-btn"
-                        onClick={() => {
-                          setReviewingId(null);
-                          setReviewRating(0);
-                          setReviewComment("");
-                          setReviewError("");
-                        }}
-                      >
-                        Back
-                      </button>
-                    </div>
-                  </div>
                 )}
 
+                {bookingRefunds.map((refund) => (
+                  <p key={refund._id}>
+                    Refund Status: <strong>{refund.status}</strong>
+                  </p>
+                ))}
+
+                {!isCancelled && editingId !== booking._id && (
+                  <div className="history-card-actions">
+                    <button
+                      className="history-btn"
+                      onClick={() => startEdit(booking)}
+                    >
+                      Edit Booking
+                    </button>
+
+                    <button
+                      className="history-btn"
+                      disabled={hasPendingRefund}
+                      onClick={() => {
+                        setRefundingId(booking._id);
+                        setRefundReason("");
+                        setRefundError("");
+                        setRefundSuccess("");
+                      }}
+                    >
+                      {hasPendingRefund
+                        ? "Cancel & Refund Request Pending"
+                        : "Request Cancel & Refund"}
+                    </button>
+
+                    <button
+                      className="history-btn"
+                      onClick={() => setReviewingId(booking._id)}
+                    >
+                      Write a Review
+                    </button>
+                  </div>
+                )}
               </div>
-            );
-          })
-        )}
-        </div>
-);
 
-return embedded ? content : <CustomerLayout>{content}</CustomerLayout>;
+              {editingId === booking._id && !isCancelled ? (
+                <div className="history-card history-edit-card">
+                  <h3>Edit Booking</h3>
+
+                  <p>Select New Date:</p>
+                  <input
+                    type="date"
+                    value={editDate}
+                    min={new Date().toLocaleDateString("en-CA")}
+                    onChange={(e) => setEditDate(e.target.value)}
+                  />
+
+                  <p>Select New Time:</p>
+                  <div className="booking-time-slots">
+                    {slots.length === 0 ? (
+                      <p>No available time slots.</p>
+                    ) : (
+                      slots.map((slot) => {
+                        const isCurrentSlot =
+                          editDate === booking.date &&
+                          slot.start === booking.slotStart;
+
+                        const unavailable = slot.booked && !isCurrentSlot;
+
+                        return (
+                          <button
+                            key={slot.start}
+                            type="button"
+                            disabled={unavailable}
+                            className={editSlot === slot.start ? "selected" : ""}
+                            onClick={() => setEditSlot(slot.start)}
+                            style={
+                              unavailable
+                                ? {
+                                  backgroundColor: "#e0e0e0",
+                                  color: "#888",
+                                  cursor: "not-allowed",
+                                }
+                                : {}
+                            }
+                          >
+                            {slot.start}
+                            {unavailable ? " (Booked)" : ""}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {error && <p style={{ color: "red" }}>{error}</p>}
+
+                  <div className="history-edit-actions">
+                    <button
+                      className="history-btn"
+                      onClick={saveChanges}
+                      disabled={!editSlot || saving}
+                    >
+                      {saving ? "Saving..." : "Save Changes"}
+                    </button>
+
+                    <button
+                      className="history-btn"
+                      onClick={() => setEditingId(null)}
+                      disabled={saving}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!isCancelled && refundingId === booking._id && (
+                    <div className="history-card history-edit-card">
+                      <h3>Request Cancel & Refund</h3>
+                      <p>Reason for Cancellation:</p>
+
+                      <textarea
+                        value={refundReason}
+                        onChange={(e) => setRefundReason(e.target.value)}
+                        placeholder="Enter your reason..."
+                        rows={4}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          borderRadius: "8px",
+                          border: "1px solid #76a37b",
+                          boxSizing: "border-box",
+                          resize: "vertical",
+                        }}
+                      />
+
+                      {refundError && (
+                        <p style={{ color: "red" }}>{refundError}</p>
+                      )}
+
+                      <div className="history-edit-actions">
+                        <button
+                          className="history-btn"
+                          onClick={submitRefundRequest}
+                          disabled={!refundReason.trim() || refundSaving}
+                        >
+                          {refundSaving ? "Submitting..." : "Submit Request"}
+                        </button>
+
+                        <button
+                          className="history-btn"
+                          onClick={() => {
+                            setRefundingId(null);
+                            setRefundReason("");
+                            setRefundError("");
+                          }}
+                          disabled={refundSaving}
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {reviewingId === booking._id && (
+                <div className="history-card history-edit-card">
+                  <h3>Write a Review</h3>
+
+                  <div className="rating-stars">
+                    {[1, 2, 3, 4, 5].map((star) =>
+                      star <= reviewRating ? (
+                        <FaStar
+                          key={star}
+                          className="star-icon active-star"
+                          onClick={() => setReviewRating(star)}
+                        />
+                      ) : (
+                        <FaRegStar
+                          key={star}
+                          className="star-icon"
+                          onClick={() => setReviewRating(star)}
+                        />
+                      )
+                    )}
+                  </div>
+
+                  <textarea
+                    className="review-textarea"
+                    placeholder="Share your experience..."
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                  />
+
+                  {reviewError && (
+                    <p style={{ color: "red" }}>{reviewError}</p>
+                  )}
+
+                  <div className="history-card-actions">
+                    <button
+                      className="history-btn"
+                      disabled={reviewSaving}
+                      onClick={submitReview}
+                    >
+                      {reviewSaving ? "Sending..." : "Send Review"}
+                    </button>
+
+                    <button
+                      className="history-btn"
+                      onClick={() => {
+                        setReviewingId(null);
+                        setReviewRating(0);
+                        setReviewComment("");
+                        setReviewError("");
+                      }}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  return embedded ? content : <CustomerLayout>{content}</CustomerLayout>;
 }

@@ -1721,17 +1721,69 @@ app.put("/bookings/:id/customer-edit", async (req, res) => {
 });
 
 
-// Get all bookings of one center
-app.get("/bookings/center/:centerId", async (req, res) => {
+// Get all bookings of one customer (booking history)
+app.get("/bookings/customer/:email", async (req, res) => {
   try {
     const bookings = await BookingModel.find({
-      centerId: req.params.centerId,
+      customerEmail: req.params.email,
     }).sort({ date: -1 });
-    res.send({ message: "success", bookings });
+
+    const result = await Promise.all(
+      bookings.map(async (booking) => {
+        // Find the center login account using the booking centerId
+        const centerUser = await UserModel.findOne({
+          _id: booking.centerId,
+          role: "center",
+        }).select("username email centerId");
+
+        let centerRecord = null;
+
+        // First try the linked CENTER record ID
+        if (centerUser?.centerId) {
+          centerRecord = await CenterModel.findById(centerUser.centerId);
+        }
+
+        // Fallback: find the CENTER record using the account email
+        if (!centerRecord && centerUser?.email) {
+          centerRecord = await CenterModel.findOne({
+            email: centerUser.email,
+          });
+        }
+
+        // Fallback: find the CENTER record using the account username
+        if (!centerRecord && centerUser?.username) {
+          centerRecord = await CenterModel.findOne({
+            centerName: centerUser.username,
+          });
+        }
+
+        // Support older bookings that may store the CENTER record ID directly
+        if (!centerUser) {
+          centerRecord = await CenterModel.findById(booking.centerId);
+        }
+
+        return {
+          ...booking.toObject(),
+          centerName:
+            centerRecord?.centerName ||
+            centerUser?.username ||
+            "Unknown Center",
+        };
+      })
+    );
+
+    res.send({
+      message: "success",
+      bookings: result,
+    });
   } catch (error) {
-    res.send({ message: "Get Bookings Error: " + error.message });
+    console.error("Get Customer Bookings Error:", error);
+    res.status(500).send({
+      message: "Get Bookings Error: " + error.message,
+    });
   }
 });
+
 
 // Get all bookings of one customer (booking history)
 app.get("/bookings/customer/:email", async (req, res) => {
