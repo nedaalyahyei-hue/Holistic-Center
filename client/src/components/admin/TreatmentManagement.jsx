@@ -184,7 +184,7 @@ export default function TreatmentManagement() {
               </div>
 
               <div className="sidebar-item active">
-                Treatment Management
+                Category Management
               </div>
 
               <div
@@ -206,9 +206,9 @@ export default function TreatmentManagement() {
             </div>
           </div>
 
-          {/* Treatment Management Content */}
+          {/* Category Management Content */}
           <div className="content-wrapper">
-            <h2 className="title">Treatment Management</h2>
+            <h2 className="title">Category Management</h2>
 
             <div className="management-card">
               <input
