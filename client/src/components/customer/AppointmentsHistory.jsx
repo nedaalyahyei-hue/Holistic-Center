@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import CustomerLayout from "./CustomerLayout";
 import "./Customer.css";
@@ -31,6 +30,21 @@ export default function AppointmentsHistory({ embedded = false }) {
   const [reviewSuccess, setReviewSuccess] = useState("");
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  // Convert 24-hour time to 12-hour time with AM/PM for display only.
+  const formatTime = (time) => {
+    if (!time) return "N/A";
+
+    const [hours, minutes] = String(time).split(":");
+    const hour = Number(hours);
+
+    if (Number.isNaN(hour)) return time;
+
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+
+    return `${String(displayHour).padStart(2, "0")}:${minutes || "00"} ${period}`;
+  };
 
   const loadBookings = async () => {
     if (!user?.email) {
@@ -77,7 +91,6 @@ export default function AppointmentsHistory({ embedded = false }) {
     loadRefunds();
   }, []);
 
-
   useEffect(() => {
     const markRefundNotificationsRead = async () => {
       if (!user?.email) return;
@@ -121,7 +134,6 @@ export default function AppointmentsHistory({ embedded = false }) {
 
     markRefundNotificationsRead();
   }, []);
-
 
   const startEdit = (booking) => {
     setEditingId(booking._id);
@@ -232,7 +244,6 @@ export default function AppointmentsHistory({ embedded = false }) {
     }
   };
 
-
   const submitReview = async () => {
     if (reviewSaving || !reviewingId) return;
 
@@ -283,7 +294,6 @@ export default function AppointmentsHistory({ embedded = false }) {
     }
   };
 
-
   const getBookingRefunds = (booking) =>
     refunds.filter((refund) => {
       const bookingId =
@@ -314,7 +324,6 @@ export default function AppointmentsHistory({ embedded = false }) {
             <div className="history-wrapper" key={booking._id}>
               <h2>Order Summary</h2>
 
-
               <div className="history-card">
                 <p>
                   <strong>Center:</strong> {booking.centerName || "Unknown Center"}
@@ -323,8 +332,13 @@ export default function AppointmentsHistory({ embedded = false }) {
                 <p>
                   <strong>{booking.treatmentName}</strong>
                 </p>
+
                 <p>Date: {booking.date}</p>
-                <p>Time: {booking.slotStart || booking.time || "N/A"}</p>
+
+                <p>
+                  Time: {formatTime(booking.slotStart || booking.time)}
+                </p>
+
                 <p>
                   Price: <span>{booking.price} OMR</span>
                 </p>
@@ -409,14 +423,14 @@ export default function AppointmentsHistory({ embedded = false }) {
                             style={
                               unavailable
                                 ? {
-                                  backgroundColor: "#e0e0e0",
-                                  color: "#888",
-                                  cursor: "not-allowed",
-                                }
+                                    backgroundColor: "#e0e0e0",
+                                    color: "#888",
+                                    cursor: "not-allowed",
+                                  }
                                 : {}
                             }
                           >
-                            {slot.start}
+                            {formatTime(slot.start)}
                             {unavailable ? " (Booked)" : ""}
                           </button>
                         );
@@ -495,6 +509,7 @@ export default function AppointmentsHistory({ embedded = false }) {
                   )}
                 </>
               )}
+
               {reviewingId === booking._id && (
                 <div className="history-card history-edit-card">
                   <h3>Write a Review</h3>
@@ -551,7 +566,6 @@ export default function AppointmentsHistory({ embedded = false }) {
                   </div>
                 </div>
               )}
-
             </div>
           );
         })

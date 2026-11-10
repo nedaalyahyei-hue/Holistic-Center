@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import CustomerLayout from "./CustomerLayout";
@@ -14,20 +13,36 @@ export default function BookingConfirmation() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Convert 24-hour time to 12-hour time with AM/PM for display only.
+  const formatTime = (time) => {
+    if (!time) return "N/A";
+
+    const [hours, minutes] = String(time).split(":");
+    const hour = Number(hours);
+
+    if (Number.isNaN(hour)) return time;
+
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+
+    return `${String(displayHour).padStart(2, "0")}:${minutes || "00"} ${period}`;
+  };
+
   const confirmBooking = async () => {
     if (saving) return;
 
-   const user = JSON.parse(localStorage.getItem("user") || "null");
+    const user = JSON.parse(localStorage.getItem("user") || "null");
 
-if (!user?.email) {
-  setError("Please login first to book an appointment.");
+    if (!user?.email) {
+      setError("Please login first to book an appointment.");
 
-  setTimeout(() => {
-    navigate("/login");
-  }, 7000);
+      setTimeout(() => {
+        navigate("/login");
+      }, 7000);
 
-  return;
-}
+      return;
+    }
+
     if (!treatmentId || !date || !slotStart) {
       setError("Booking details are missing.");
       return;
@@ -88,7 +103,7 @@ if (!user?.email) {
           </p>
 
           <p>
-            <strong>Time:</strong> {slotStart}
+            <strong>Time:</strong> {formatTime(slotStart)}
           </p>
 
           <p>

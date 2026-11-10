@@ -9,9 +9,25 @@ import F1 from "../../assets/F1.jpg";
 export default function TreatmentBooking() {
   const navigate = useNavigate();
   const { treatmentId } = useParams();
+
   const [treatment, setTreatment] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
+
+  // Convert 24-hour time to 12-hour time with AM/PM for display only.
+  const formatTime = (time) => {
+    if (!time) return "N/A";
+
+    const [hours, minutes] = String(time).split(":");
+    const hour = Number(hours);
+
+    if (Number.isNaN(hour)) return time;
+
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+
+    return `${String(displayHour).padStart(2, "0")}:${minutes || "00"} ${period}`;
+  };
 
   useEffect(() => {
     fetch(`http://localhost:3002/treatments/${treatmentId}`)
@@ -24,7 +40,11 @@ export default function TreatmentBooking() {
       .catch((error) => console.error("Error loading treatment:", error));
   }, [treatmentId]);
 
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
   const today = new Date();
@@ -32,7 +52,6 @@ export default function TreatmentBooking() {
   const [year, setYear] = useState(today.getFullYear());
   const [selectedDay, setSelectedDay] = useState(null);
 
-  // أول يوم في الشهر وعدد الأيام
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -94,6 +113,7 @@ export default function TreatmentBooking() {
 
     return isPast || isClosed;
   }
+
   function confirmBooking() {
     const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
 
@@ -107,11 +127,12 @@ export default function TreatmentBooking() {
     });
   }
 
-  // أرقام الأيام مع فراغات في البداية
   const calendarDays = [];
+
   for (let i = 0; i < firstDay; i++) {
     calendarDays.push(<span key={"empty" + i}></span>);
   }
+
   for (let day = 1; day <= daysInMonth; day++) {
     calendarDays.push(
       <span
@@ -132,10 +153,12 @@ export default function TreatmentBooking() {
     <CustomerLayout>
       <div className="booking-content">
         <h1>Treatment Booking</h1>
+
         <div className="booking-description-card">
           <img src={F1} alt="Treatment" />
           <p>{treatment?.description || "No description available."}</p>
         </div>
+
         <div className="booking-details-row">
           <div className="booking-info-card">
             <p><strong>{treatment?.name || treatment?.trName}</strong></p>
@@ -146,13 +169,16 @@ export default function TreatmentBooking() {
               <p>Location: {treatment?.location || "Not available"}</p>
             </div>
           </div>
+
           <div className="booking-date-card">
             <h3>Select Date</h3>
+
             <div className="booking-month">
               <IoIosArrowBack onClick={prevMonth} />
               <span>{months[month]} {year}</span>
               <IoIosArrowForward onClick={nextMonth} />
             </div>
+
             <div className="calendar-grid">
               {days.map((d) => <span key={d}>{d}</span>)}
               {calendarDays}
@@ -163,7 +189,6 @@ export default function TreatmentBooking() {
                 <h3>Select Time</h3>
 
                 {availableSlots.length > 0 ? (
-
                   availableSlots.map((slot, index) => (
                     <button
                       key={index}
@@ -178,20 +203,19 @@ export default function TreatmentBooking() {
                       style={
                         slot.booked
                           ? {
-                            backgroundColor: "#e0e0e0",
-                            color: "#888",
-                            borderColor: "#ccc",
-                            cursor: "not-allowed",
-                            opacity: 0.7,
-                          }
+                              backgroundColor: "#e0e0e0",
+                              color: "#888",
+                              borderColor: "#ccc",
+                              cursor: "not-allowed",
+                              opacity: 0.7,
+                            }
                           : {}
                       }
                       title={slot.booked ? "Already booked" : "Available"}
                     >
-                      {slot.start} {slot.booked ? "(Booked)" : ""}
+                      {formatTime(slot.start)} {slot.booked ? "(Booked)" : ""}
                     </button>
                   ))
-
                 ) : (
                   <p>No available time slots for this date.</p>
                 )}
@@ -199,8 +223,18 @@ export default function TreatmentBooking() {
             )}
           </div>
         </div>
-        <button className="booking-btn" onClick={confirmBooking} disabled={!selectedDay || !selectedSlot}>Confirm Booking</button>
-        <button className="booking-btn" onClick={() => navigate(-1)}>Back</button>
+
+        <button
+          className="booking-btn"
+          onClick={confirmBooking}
+          disabled={!selectedDay || !selectedSlot}
+        >
+          Confirm Booking
+        </button>
+
+        <button className="booking-btn" onClick={() => navigate(-1)}>
+          Back
+        </button>
       </div>
     </CustomerLayout>
   );
