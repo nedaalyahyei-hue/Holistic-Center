@@ -321,3 +321,33 @@ textarea.styled-input {
 .center-page.dark .cancel-btn {
   background: #3e4a3e !important;
 }
+
+
+/* Interactive center map picker */
+.center-map-field { display: flex; gap: 9px; align-items: stretch; width: 100%; }
+.center-map-coordinate { flex: 1; min-width: 0; cursor: not-allowed; background: #f3f5f1 !important; }
+.center-map-open-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 0; border-radius: 9px; background: #76a37b; color: #fff; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.center-map-open-btn:disabled { opacity: .55; cursor: not-allowed; }
+.center-map-modal-backdrop { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.58); }
+.center-map-modal { width: min(900px, 100%); max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: #fff; box-shadow: 0 18px 60px rgba(0,0,0,.28); }
+.center-map-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 18px; }
+.center-map-modal-header h3 { margin: 0; color: #2c3123; }
+.center-map-modal-header p { margin: 5px 0 0; color: #687064; font-size: 13px; }
+.center-map-close { border: 0; background: transparent; color: #444; font-size: 30px; cursor: pointer; line-height: 1; }
+.center-map-instructions { padding: 0 18px 10px; color: #555; font-size: 13px; }
+.center-map-canvas { width: 100%; height: min(55vh, 520px); min-height: 300px; z-index: 1; }
+.center-map-modal-footer { padding: 12px 18px 16px; }
+.center-map-selected { color: #3b493b; font-size: 13px; font-weight: 700; }
+.center-map-error { margin: 7px 0 0; color: #c0392b; font-size: 13px; }
+.center-map-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 12px; }
+.center-map-cancel, .center-map-confirm { border: 0; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; }
+.center-map-cancel { background: #e9ece8; color: #333; }
+.center-map-confirm { background: #2c3123; color: #fff; }
+.center-map-marker-wrap { background: transparent; border: 0; }
+.center-map-marker { width: 46px; height: 46px; overflow: hidden; border: 3px solid #fff; border-radius: 50%; background: #76a37b; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
+.center-map-marker img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.center-map-marker-tip { display: block; width: 12px; height: 12px; margin: -3px auto 0; transform: rotate(45deg); background: #76a37b; border-right: 2px solid #fff; border-bottom: 2px solid #fff; }
+.center-page.dark .center-map-modal { background: #222; }
+.center-page.dark .center-map-modal-header h3, .center-page.dark .center-map-instructions, .center-page.dark .center-map-selected { color: #f5f5f5; }
+.center-page.dark .center-map-modal-header p { color: #ccc; }
+@media (max-width: 600px) { .center-map-field { flex-direction: column; } .center-map-open-btn { min-height: 44px; } .center-map-modal-backdrop { padding: 8px; } .center-map-modal { max-height: 98vh; } .center-map-canvas { height: 48vh; min-height: 260px; } }

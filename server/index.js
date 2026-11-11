@@ -73,6 +73,7 @@ const UserSchema = new mongoose.Schema({
   locations: [
     {
       name: { type: String, required: true },
+      coordinates: { type: String, default: "" },
       mapUrl: { type: String, required: true },
     },
   ],
@@ -616,6 +617,36 @@ async function centerProfileData(user) {
   return { ...user.toObject(), crNumber: record?.crNumber || "" };
 }
 
+// Map coordinates are stored as "latitude, longitude" and restricted to Muscat.
+const MUSCAT_AREA_SERVER = [
+  [23.38, 57.28], [23.44, 57.48], [23.48, 57.72], [23.45, 57.91],
+  [23.42, 58.08], [23.46, 58.28], [23.52, 58.49], [23.62, 58.67],
+  [23.78, 58.62], [23.83, 58.37], [23.82, 58.12], [23.78, 57.88],
+  [23.72, 57.64], [23.62, 57.42], [23.50, 57.30],
+];
+
+function parseLocationCoordinates(value) {
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng, normalized: `${lat.toFixed(6)},${lng.toFixed(6)}` };
+}
+
+function isInsideMuscatServer(lat, lng) {
+  let inside = false;
+  for (let i = 0, j = MUSCAT_AREA_SERVER.length - 1; i < MUSCAT_AREA_SERVER.length; j = i++) {
+    const [yi, xi] = MUSCAT_AREA_SERVER[i];
+    const [yj, xj] = MUSCAT_AREA_SERVER[j];
+    if (((xi > lng) !== (xj > lng)) && lat < ((yj - yi) * (lng - xi)) / ((xj - xi) || 1e-12) + yi) inside = !inside;
+  }
+  return inside;
+}
+
+const googleMapUrl = ({ lat, lng }) => `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+
 // Only what the center sends is changed. Everything else stays exactly as it is saved.
 app.put("/center/:id", async (req, res) => {
   try {
@@ -655,6 +686,7 @@ app.put("/center/:id", async (req, res) => {
       const oldLocations = (center.locations || []).map((l) => ({
         id: String(l._id),
         name: l.name,
+        coordinates: l.coordinates || "",
       }));
 
       const rows = [];
@@ -662,20 +694,18 @@ app.put("/center/:id", async (req, res) => {
 
       for (const l of body.locations) {
         const name = String(l?.name ?? "").replace(/\s+/g, " ").trim();
-        const mapUrl = String(l?.mapUrl ?? "").trim();
+        const point = parseLocationCoordinates(String(l?.coordinates ?? ""));
 
-        if (!name && !mapUrl) continue; // empty row
-        if (!name || !mapUrl) return res.send({ message: "Each location needs a name and a map link" });
-        if (!/^https?:\/\//i.test(mapUrl)) {
-          return res.send({ message: "Map link must start with http:// or https://" });
-        }
+        if (!name && !l?.coordinates) continue; // empty row
+        if (!name || !point) return res.send({ message: "Each location needs a name and map coordinates" });
+        if (!isInsideMuscatServer(point.lat, point.lng)) return res.send({ message: "Choose a location inside Muscat" });
 
         // a saved location keeps its id, so a rename can be followed in the treatments
         let old = oldLocations.find((o) => o.id === String(l?._id ?? ""));
         if (old && usedIds.has(old.id)) old = undefined;
         if (old) usedIds.add(old.id);
 
-        rows.push({ old, name, mapUrl });
+        rows.push({ old, name, coordinates: point.normalized, mapUrl: googleMapUrl(point) });
       }
 
       const seen = new Set();
@@ -683,6 +713,27 @@ app.put("/center/:id", async (req, res) => {
         const key = r.name.toLowerCase();
         if (seen.has(key)) return res.send({ message: "Location names must be different" });
         seen.add(key);
+      }
+
+      const coordinateSet = new Set();
+      for (const row of rows) {
+        if (coordinateSet.has(row.coordinates)) {
+          return res.send({ message: "This map location is already used by another branch" });
+        }
+        coordinateSet.add(row.coordinates);
+      }
+
+      // Prevent another center from registering the same map point.
+      const otherCenters = await UserModel.find({ _id: { $ne: center._id }, role: "center" }).select("locations");
+      const otherPoints = new Set();
+      for (const other of otherCenters) {
+        for (const location of other.locations || []) {
+          const point = parseLocationCoordinates(location.coordinates || "");
+          if (point) otherPoints.add(point.normalized);
+        }
+      }
+      if (rows.some((row) => otherPoints.has(row.coordinates))) {
+        return res.send({ message: "This map location is already used by another center" });
       }
 
       const finalNames = new Set(rows.map((r) => r.name));
@@ -709,8 +760,8 @@ app.put("/center/:id", async (req, res) => {
 
       updates.locations = rows.map((r) =>
         r.old
-          ? { _id: r.old.id, name: r.name, mapUrl: r.mapUrl }
-          : { name: r.name, mapUrl: r.mapUrl }
+          ? { _id: r.old.id, name: r.name, coordinates: r.coordinates, mapUrl: r.mapUrl }
+          : { name: r.name, coordinates: r.coordinates, mapUrl: r.mapUrl }
       );
     }
 

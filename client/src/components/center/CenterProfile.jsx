@@ -4,13 +4,26 @@ import { useNavigate } from "react-router-dom";
 import logoImg from "../../assets/logo.png";
 import CenterShell from "./CenterShell";
 import ImagePicker from "./ImagePicker";
+import LocationMapPicker from "./LocationMapPicker";
 import Toast from "./Toast";
 import { useLang } from "./centerLang";
 import { Req, FieldError, scrollToFirstError } from "./formHelpers";
 
 const API = "http://localhost:3002";
 
-const emptyLocation = () => ({ _id: "", name: "", mapUrl: "" });
+const emptyLocation = () => ({ _id: "", name: "", coordinates: "", mapUrl: "" });
+
+const coordinatesFromMapUrl = (url) => {
+  if (!url) return "";
+  const text = String(url);
+  const match = text.match(/(?:@|[?&](?:q|query|ll)=)(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i);
+  return match ? `${Number(match[1]).toFixed(6)}, ${Number(match[2]).toFixed(6)}` : "";
+};
+
+const mapUrlFromCoordinates = (coordinates) => {
+  const match = String(coordinates || "").match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/);
+  return match ? `https://www.google.com/maps?q=${Number(match[1])},${Number(match[2])}` : "";
+};
 
 // rows without any text are ignored
 const cleanLocations = (list) =>
@@ -18,9 +31,10 @@ const cleanLocations = (list) =>
     .map((l) => ({
       _id: l._id || "",
       name: (l.name || "").replace(/\s+/g, " ").trim(),
-      mapUrl: (l.mapUrl || "").trim(),
+      coordinates: (l.coordinates || coordinatesFromMapUrl(l.mapUrl) || "").trim(),
+      mapUrl: mapUrlFromCoordinates(l.coordinates || coordinatesFromMapUrl(l.mapUrl)),
     }))
-    .filter((l) => l.name || l.mapUrl);
+    .filter((l) => l.name || l.coordinates);
 
 // phone number: 8 digits, numbers only, starts with 9 or 7
 const phoneFormatProblem = (value) => {
@@ -31,10 +45,11 @@ const phoneFormatProblem = (value) => {
 };
 
 const locationsProblem = (rows) => {
-  if (rows.some((l) => !l.name || !l.mapUrl)) return "locIncomplete";
-  if (rows.some((l) => !/^https?:\/\//i.test(l.mapUrl))) return "locBadLink";
+  if (rows.some((l) => !l.name || !l.coordinates)) return "locIncomplete";
   const names = rows.map((l) => l.name.toLowerCase());
   if (new Set(names).size !== names.length) return "locDuplicate";
+  const points = rows.map((l) => l.coordinates.replace(/\s/g, ""));
+  if (new Set(points).size !== points.length) return "locDuplicateCoordinates";
   return "";
 };
 
@@ -74,7 +89,8 @@ export default function CenterProfile() {
       locations: (c.locations || []).map((l) => ({
         _id: String(l._id),
         name: l.name,
-        mapUrl: l.mapUrl,
+        coordinates: l.coordinates || coordinatesFromMapUrl(l.mapUrl),
+        mapUrl: l.mapUrl || mapUrlFromCoordinates(l.coordinates),
       })),
     };
     savedData.current = data;
@@ -142,7 +158,12 @@ export default function CenterProfile() {
   const handlePhoneBlur = () => setPhoneError(phoneKey(center.phone));
 
   const handleLocationChange = (index, field, value) => {
-    setLocations(locations.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+    setLocations(locations.map((l, i) => {
+      if (i !== index) return l;
+      const next = { ...l, [field]: value };
+      if (field === "coordinates") next.mapUrl = mapUrlFromCoordinates(value);
+      return next;
+    }));
     setLocError("");
   };
 
@@ -189,6 +210,7 @@ export default function CenterProfile() {
     setLocError(lKey);
     if (pKey || lKey) {
       if (pKey) setToast({ text: "The number is incorrect.", type: "error" });
+      else if (lKey) setToast({ text: t(lKey), type: "error" });
       scrollToFirstError();
       return;
     }
@@ -348,12 +370,11 @@ export default function CenterProfile() {
                 disabled={!loaded}
                 style={{ marginBottom: "8px" }}
               />
-              <input
-                type="text"
-                className="styled-input"
-                placeholder={t("mapLinkPh")}
-                value={loc.mapUrl}
-                onChange={(e) => handleLocationChange(index, "mapUrl", e.target.value)}
+              <LocationMapPicker
+                value={loc.coordinates}
+                image={center.image || logoImg}
+                onChange={(coordinates) => handleLocationChange(index, "coordinates", coordinates)}
+                t={t}
                 disabled={!loaded}
               />
               <button
