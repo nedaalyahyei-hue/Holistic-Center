@@ -32,8 +32,13 @@ export default function EditTretment() {
   const [workDays, setWorkDays] = useState(oldTreatment?.workDays ?? [0, 1, 2, 3, 4, 6]);
   const [slots, setSlots] = useState(
     oldTreatment?.slots?.length
-      ? oldTreatment.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }))
-      : [{ start: "09:00", end: "", doctor: "" }]
+      ? oldTreatment.slots.map((s) => ({
+        start: s.start,
+        end: s.end,
+        doctor: s.doctor,
+        doctorId: s.doctorId || "",
+      }))
+      : [{ start: "09:00", end: "", doctor: "", doctorId: "" }]
   );
   const [errors, setErrors] = useState({}); // field -> translation key
 

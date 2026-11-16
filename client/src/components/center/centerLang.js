@@ -190,6 +190,8 @@ const dict = {
     noDoctorsForSlots: "You have not registered any doctors yet. Add your doctors first, then create the time slots.",
     goAddDoctors: "Go to Doctors page",
     notRegistered: "not registered",
+    slotOutsideWorkingHours: "Appointments must start at or after 08:00 AM and finish by 10:00 PM.",
+    doctorBusy: 'Dr. {doctor} is already booked in "{treatment}" from {start} to {end} on a shared working day. A doctor needs at least 5 minutes between two appointments.',
 
     doctorsTitle: "Center Doctors",
     doctorNameLbl: "Doctor Name",
@@ -407,6 +409,8 @@ const dict = {
     noDoctorsForSlots: "لم تسجّل أي أطباء بعد. سجّل أطباءك أولاً ثم أنشئ المواعيد.",
     goAddDoctors: "الذهاب لصفحة الأطباء",
     notRegistered: "غير مسجّل",
+    slotOutsideWorkingHours: "يجب أن تبدأ المواعيد من 08:00 صباحاً وتنتهي قبل 10:00 مساءً.",
+    doctorBusy: 'الدكتور {doctor} لديه موعد في علاج "{treatment}" من {start} إلى {end} في يوم عمل مشترك. يجب أن يكون بين موعدي الدكتور 5 دقائق على الأقل.',
 
     doctorsTitle: "أطباء المركز",
     doctorNameLbl: "اسم الدكتور",
@@ -510,6 +514,9 @@ const dict = {
     "srv:Choose a location inside Muscat": "يجب اختيار موقع داخل مسقط",
     "srv:This map location is already used by another branch": "هذا الموقع مستخدم مسبقاً لأحد فروع المركز",
     "srv:This map location is already used by another center": "هذا الموقع مستخدم مسبقاً من مركز آخر",
+    "srv:This doctor is already registered with the same specialty": "هذا الدكتور مسجّل مسبقاً بنفس التخصص",
+    "srv:Choose the doctor from the list (two doctors have the same name)": "اختر الدكتور من القائمة (يوجد دكتوران بنفس الاسم)",
+    "srv:Appointments must start at or after 08:00 AM and finish by 10:00 PM": "يجب أن تبدأ المواعيد من 08:00 صباحاً وتنتهي قبل 10:00 مساءً",
 
 
   },
@@ -530,7 +537,16 @@ export function useLang() {
   };
 
   // translates known server messages, leaves the others as they are
-  const ts = (message) => dict[lang]["srv:" + message] ?? message;
-
+  // translates known server messages, leaves the others as they are
+  const ts = (message) => {
+    if (typeof message === "string" && message.startsWith("DOCTOR_BUSY:")) {
+      try {
+        return t("doctorBusy", JSON.parse(message.slice("DOCTOR_BUSY:".length)));
+      } catch (error) {
+        return message;
+      }
+    }
+    return dict[lang]["srv:" + message] ?? message;
+  };
   return { lang, t, ts, toggleLang, isAr: lang === "ar" };
 }

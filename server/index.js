@@ -24,7 +24,10 @@ const conStr =
 
 mongoose
   .connect(conStr)
-  .then(() => console.log("Database Connected..."))
+  .then(() => {
+    console.log("Database Connected...");
+    migrateDoctors();
+  })
   .catch((error) => console.log("Database Error: " + error));
 
 // An image is either empty, a web link, or a small picture saved as text (data URL)
@@ -1091,6 +1094,10 @@ app.put("/messages/read-admin/:customerId", async (req, res) => {
 });
 
 // ================= Doctor =================
+// Text helpers: remove extra spaces, and a lower case key to compare names / specialties
+const cleanText = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+const textKey = (v) => cleanText(v).normalize("NFKC").toLowerCase();
+
 const DoctorSchema = new mongoose.Schema(
   {
     // centerId = the _id of the center's login account in the USER collection
@@ -1100,14 +1107,16 @@ const DoctorSchema = new mongoose.Schema(
       required: true,
     },
     name: { type: String, required: true, trim: true },
-    nameKey: { type: String, required: true }, // lower case name, blocks duplicates
+    nameKey: { type: String, required: true },       // lower case name
     specialty: { type: String, trim: true, default: "" },
+    specialtyKey: { type: String, default: "" },     // lower case specialty
   },
   { timestamps: true }
 );
 
-// the same doctor name cannot be registered twice in one center
-DoctorSchema.index({ centerId: 1, nameKey: 1 }, { unique: true });
+// the same name + the same specialty cannot be registered twice in one center
+// (the same name with a different specialty is allowed)
+DoctorSchema.index({ centerId: 1, nameKey: 1, specialtyKey: 1 }, { unique: true });
 
 const DoctorModel = mongoose.model("DOCTOR", DoctorSchema, "DOCTOR");
 
@@ -1118,26 +1127,35 @@ app.post("/doctors", async (req, res) => {
 
     if (!mongoose.isValidObjectId(centerId)) return res.send({ message: "Invalid center" });
 
-    const cleanName = (name || "").replace(/\s+/g, " ").trim();
+    const cleanName = cleanText(name);
     if (!cleanName) return res.send({ message: "Doctor name is required" });
 
-    const cleanSpecialty = (specialty || "").replace(/\s+/g, " ").trim();
+    const cleanSpecialty = cleanText(specialty);
     if (cleanSpecialty.length < 2) return res.send({ message: "Specialty is required" });
 
     const center = await UserModel.findOne({ _id: centerId, role: "center" });
     if (!center) return res.send({ message: "Center not found" });
 
+    const nameKey = textKey(cleanName);
+    const specialtyKey = textKey(cleanSpecialty);
+
+    const duplicate = await DoctorModel.exists({ centerId, nameKey, specialtyKey });
+    if (duplicate) {
+      return res.send({ message: "This doctor is already registered with the same specialty" });
+    }
+
     const doctor = await DoctorModel.create({
       centerId,
       name: cleanName,
-      nameKey: cleanName.toLowerCase(),
+      nameKey,
       specialty: cleanSpecialty,
+      specialtyKey,
     });
 
     res.send({ message: "success", doctor });
   } catch (error) {
     if (error.code === 11000) {
-      return res.send({ message: "This doctor is already registered" });
+      return res.send({ message: "This doctor is already registered with the same specialty" });
     }
     res.send({ message: "Add Doctor Error: " + error.message });
   }
@@ -1149,7 +1167,7 @@ app.get("/doctors/center/:centerId", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.centerId)) {
       return res.send({ message: "Invalid center" });
     }
-    const doctors = await DoctorModel.find({ centerId: req.params.centerId }).sort({ name: 1 });
+    const doctors = await DoctorModel.find({ centerId: req.params.centerId }).sort({ name: 1, specialty: 1 });
     res.send({ message: "success", doctors });
   } catch (error) {
     res.send({ message: "Get Doctors Error: " + error.message });
@@ -1169,9 +1187,17 @@ app.delete("/doctors/:id", async (req, res) => {
     }
 
     // a doctor used in a treatment schedule cannot be deleted
+    // (checked by doctorId; old slots without an id are checked by name)
     const used = await TreatmentModel.exists({
       centerId: doctor.centerId,
-      "slots.doctor": doctor.name,
+      slots: {
+        $elemMatch: {
+          $or: [
+            { doctorId: doctor._id },
+            { doctorId: { $exists: false }, doctor: doctor.name },
+          ],
+        },
+      },
     });
     if (used) return res.send({ message: "This doctor is used in a treatment schedule" });
 
@@ -1181,6 +1207,7 @@ app.delete("/doctors/:id", async (req, res) => {
     res.send({ message: "Delete Doctor Error: " + error.message });
   }
 });
+
 
 // ================= Treatment =================
 const TreatmentSchema = new mongoose.Schema(
@@ -1210,6 +1237,7 @@ const TreatmentSchema = new mongoose.Schema(
         start: { type: String, required: true }, // "09:00"
         end: { type: String, required: true },   // "09:45"
         doctor: { type: String, required: true },
+        doctorId: { type: mongoose.Schema.Types.ObjectId, ref: "DOCTOR" },
       },
     ],
     // centerId = the _id of the center's login account in the USER collection
@@ -1343,12 +1371,21 @@ app.get("/search-centers", async (req, res) => {
 });
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const MIN_GAP = 5; // minutes between two slots of the same treatment
+const MIN_GAP = 5; // minutes between two slots (same treatment, or the same doctor in two treatments)
 
 const toMin = (time) => {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 };
+
+// a doctor is identified by id (old slots without an id fall back to the name)
+const slotDoctorKey = (s) =>
+  s.doctorId ? String(s.doctorId) : "name:" + textKey(s.doctor);
+
+function sameDoctor(a, b) {
+  if (a.doctorId && b.doctorId) return String(a.doctorId) === String(b.doctorId);
+  return textKey(a.doctor) === textKey(b.doctor);
+}
 
 function checkSlots(slots, duration) {
   if (!Array.isArray(slots) || slots.length === 0) {
@@ -1377,7 +1414,7 @@ function checkSlots(slots, duration) {
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
       const a = slots[i], b = slots[j];
-      if (a.doctor.trim() === b.doctor.trim() && a.start < b.end && b.start < a.end) {
+      if (slotDoctorKey(a) === slotDoctorKey(b) && a.start < b.end && b.start < a.end) {
         return `Overlapping slots for ${a.doctor.trim()}`;
       }
     }
@@ -1404,17 +1441,139 @@ function checkSlots(slots, duration) {
   return null;
 }
 
-// every doctor in the slots must be registered in the same center
-async function checkDoctors(centerId, slots) {
-  if (!mongoose.isValidObjectId(centerId)) return "Invalid center";
+// Every doctor in the slots must be registered in the same center.
+// Returns { error } or { slots } where every slot has the doctor's real name + doctorId.
+async function resolveSlotDoctors(centerId, slots) {
+  if (!mongoose.isValidObjectId(centerId)) return { error: "Invalid center" };
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return { error: "At least one time slot is required" };
+  }
 
-  const doctors = await DoctorModel.find({ centerId }).select("name");
-  const names = new Set(doctors.map((d) => d.name));
+  const doctors = await DoctorModel.find({ centerId });
+  const byId = new Map(doctors.map((d) => [String(d._id), d]));
+  const resolved = [];
 
   for (const s of slots) {
-    if (!names.has(s.doctor.trim())) return "Choose a doctor from your registered doctors";
+    const name = cleanText(s?.doctor);
+    let doc = null;
+
+    if (s?.doctorId) {
+      doc = byId.get(String(s.doctorId)) || null;
+    } else if (name) {
+      // old clients / old data: match by name, only if the name is not shared by two doctors
+      const matches = doctors.filter((d) => d.nameKey === textKey(name));
+      if (matches.length > 1) {
+        return { error: "Choose the doctor from the list (two doctors have the same name)" };
+      }
+      doc = matches[0] || null;
+    } else {
+      return { error: "Each slot needs a doctor name" };
+    }
+
+    if (!doc) return { error: "Choose a doctor from your registered doctors" };
+
+    resolved.push({ start: s.start, end: s.end, doctor: doc.name, doctorId: doc._id });
   }
+
+  return { slots: resolved };
+}
+
+// The same doctor cannot be in two treatments at the same time.
+// Only treatments that share at least one working day are compared,
+// and there must be MIN_GAP minutes between the two appointments.
+async function checkDoctorConflicts(centerId, slots, workDays, excludeId) {
+  const filter = { centerId };
+  if (excludeId) filter._id = { $ne: excludeId };
+
+  const others = await TreatmentModel.find(filter).select("name workDays slots");
+  const myDays = new Set((workDays || []).map(Number));
+
+  for (const other of others) {
+    const shareDay = (other.workDays || []).some((d) => myDays.has(Number(d)));
+    if (!shareDay) continue;
+
+    for (const s of slots) {
+      for (const os of other.slots || []) {
+        if (!sameDoctor(s, os)) continue;
+
+        const clash =
+          toMin(s.start) < toMin(os.end) + MIN_GAP &&
+          toMin(os.start) < toMin(s.end) + MIN_GAP;
+
+        if (clash) {
+          return (
+            "DOCTOR_BUSY:" +
+            JSON.stringify({
+              doctor: s.doctor,
+              treatment: other.name,
+              start: os.start,
+              end: os.end,
+            })
+          );
+        }
+      }
+    }
+  }
+
   return null;
+}
+
+// Runs once when the server starts: new doctor index, specialtyKey for old doctors,
+// and doctorId for old treatment slots (matched by the doctor's name)
+async function migrateDoctors() {
+  try {
+    // 1) specialtyKey for old doctors
+    const doctors = await DoctorModel.find({}).lean();
+    const keyOps = doctors
+      .filter((d) => d.specialtyKey === undefined || d.specialtyKey === null)
+      .map((d) => ({
+        updateOne: {
+          filter: { _id: d._id },
+          update: { $set: { specialtyKey: textKey(d.specialty) } },
+        },
+      }));
+    if (keyOps.length) await DoctorModel.bulkWrite(keyOps);
+
+    // 2) remove the old index (name only) and build the new one (name + specialty)
+    try {
+      await DoctorModel.collection.dropIndex("centerId_1_nameKey_1");
+      console.log("..");
+    } catch (e) {
+      /* the old index does not exist (already removed) */
+    }
+    await DoctorModel.createIndexes();
+
+    // 3) doctorId for old treatment slots
+    const map = new Map(); // "centerId|nameKey" -> doctor id (null when the name is shared)
+    for (const d of doctors) {
+      const k = `${d.centerId}|${d.nameKey}`;
+      map.set(k, map.has(k) ? null : d._id);
+    }
+
+    const treatments = await TreatmentModel.find({
+      slots: { $elemMatch: { doctorId: { $exists: false } } },
+    }).select("centerId slots").lean();
+
+    const slotOps = [];
+    for (const tr of treatments) {
+      let changed = false;
+      const slots = tr.slots.map((s) => {
+        if (s.doctorId) return s;
+        const id = map.get(`${tr.centerId}|${textKey(s.doctor)}`);
+        if (!id) return s;
+        changed = true;
+        return { ...s, doctorId: id };
+      });
+      if (changed) {
+        slotOps.push({ updateOne: { filter: { _id: tr._id }, update: { $set: { slots } } } });
+      }
+    }
+    if (slotOps.length) await TreatmentModel.bulkWrite(slotOps);
+
+    console.log("..");
+  } catch (error) {
+    console.log("Doctor migration error:", error.message);
+  }
 }
 
 // Every field of a treatment is required
@@ -1467,13 +1626,23 @@ app.post("/treatments", async (req, res) => {
     const imageErr = checkImage(req.body.image);
     if (imageErr) return res.send({ message: imageErr });
 
-    const err = checkSlots(req.body.slots, req.body.duration);
+    // doctors are linked by id, so two doctors with the same name are never mixed up
+    const resolved = await resolveSlotDoctors(req.body.centerId, req.body.slots);
+    if (resolved.error) return res.send({ message: resolved.error });
+
+    const err = checkSlots(resolved.slots, req.body.duration);
     if (err) return res.send({ message: err });
 
-    const doctorErr = await checkDoctors(req.body.centerId, req.body.slots);
-    if (doctorErr) return res.send({ message: doctorErr });
+    // the same doctor cannot be in another treatment at the same time
+    const conflict = await checkDoctorConflicts(
+      req.body.centerId,
+      resolved.slots,
+      req.body.workDays,
+      null
+    );
+    if (conflict) return res.send({ message: conflict });
 
-    const treatment = new TreatmentModel(req.body);
+    const treatment = new TreatmentModel({ ...req.body, slots: resolved.slots });
     await treatment.save();
     res.send({ message: "success", treatment });
   } catch (error) {
@@ -1481,6 +1650,7 @@ app.post("/treatments", async (req, res) => {
   }
 });
 
+// Treatments of one center (must stay BEFORE /treatments/:id)
 app.get("/treatments/center/:centerId", async (req, res) => {
   try {
     const treatments = await TreatmentModel.find({
@@ -1522,21 +1692,38 @@ app.put("/treatments/:id", async (req, res) => {
       if (imageErr) return res.send({ message: imageErr });
     }
 
+    // the slots that will really be saved
+    let slots = existing.slots.map((s) => ({
+      start: s.start,
+      end: s.end,
+      doctor: s.doctor,
+      doctorId: s.doctorId,
+    }));
+
+    if (req.body.slots !== undefined) {
+      const resolved = await resolveSlotDoctors(existing.centerId, req.body.slots);
+      if (resolved.error) return res.send({ message: resolved.error });
+      slots = resolved.slots;
+      req.body.slots = resolved.slots;
+    }
+
     // the schedule rules are checked whenever the slots or the duration change
     if (req.body.slots !== undefined || req.body.duration !== undefined) {
-      const slots =
-        req.body.slots !== undefined
-          ? req.body.slots
-          : existing.slots.map((s) => ({ start: s.start, end: s.end, doctor: s.doctor }));
       const duration = req.body.duration !== undefined ? req.body.duration : existing.duration;
-
       const err = checkSlots(slots, duration);
       if (err) return res.send({ message: err });
+    }
 
-      if (req.body.slots !== undefined) {
-        const doctorErr = await checkDoctors(existing.centerId, req.body.slots);
-        if (doctorErr) return res.send({ message: doctorErr });
-      }
+    // the doctor cannot be in another treatment at the same time
+    // (checked whenever the slots, the working days or the duration change)
+    if (
+      req.body.slots !== undefined ||
+      req.body.workDays !== undefined ||
+      req.body.duration !== undefined
+    ) {
+      const workDays = req.body.workDays !== undefined ? req.body.workDays : existing.workDays;
+      const conflict = await checkDoctorConflicts(existing.centerId, slots, workDays, existing._id);
+      if (conflict) return res.send({ message: conflict });
     }
 
     const treatment = await TreatmentModel.findByIdAndUpdate(
@@ -1858,20 +2045,6 @@ app.get("/bookings/customer/:email", async (req, res) => {
     res.status(500).send({
       message: "Get Bookings Error: " + error.message,
     });
-  }
-});
-
-
-// Get all bookings of one customer (booking history)
-app.get("/bookings/customer/:email", async (req, res) => {
-  try {
-    const bookings = await BookingModel.find({
-      customerEmail: req.params.email,
-    })
-      .sort({ date: -1 });
-    res.send({ message: "success", bookings });
-  } catch (error) {
-    res.send({ message: "Get Bookings Error: " + error.message });
   }
 });
 

@@ -1,5 +1,6 @@
 import React from "react";
 import { slotsProblem, toMinutes, calcEnd } from "./slotUtils";
+
 // Red star next to a required label
 export function Req() {
   return <span style={{ color: "#c0392b", marginInlineStart: "4px" }}>*</span>;
@@ -53,28 +54,24 @@ export function validateTreatment(values, workDays, slots) {
 
   if (!workDays || workDays.length === 0) errors.workDays = "selectDay";
 
-  // time slots: start time, end time, gaps and doctor
+  // time slots: working hours (08:00 - 22:00), start time, gaps and doctor
   if (!errors.duration) {
-    const problem = slotsProblem(slots, duration);
-    if (problem) errors.slots = problem;
+    const outsideWorkingHours = slots.some((s) => {
+      if (!/^\d{2}:\d{2}$/.test(s.start || "")) return false;
+
+      const start = toMinutes(s.start);
+      const end = toMinutes(calcEnd(s.start, duration));
+
+      return start < 480 || end > 1320;
+    });
+
+    if (outsideWorkingHours) {
+      errors.slots = "slotOutsideWorkingHours";
+    } else {
+      const problem = slotsProblem(slots, duration);
+      if (problem) errors.slots = problem;
+    }
   }
-  if (!errors.duration) {
-  const outsideWorkingHours = slots.some((s) => {
-    if (!/^\d{2}:\d{2}$/.test(s.start || "")) return false;
-
-    const start = toMinutes(s.start);
-    const end = toMinutes(calcEnd(s.start, duration));
-
-    return start < 480 || end > 1320;
-  });
-
-  if (outsideWorkingHours) {
-    errors.slots = "slotOutsideWorkingHours";
-  } else {
-    const problem = slotsProblem(slots, duration);
-    if (problem) errors.slots = problem;
-  }
-}
 
   return errors;
 }

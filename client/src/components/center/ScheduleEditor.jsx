@@ -6,6 +6,10 @@ import { MIN_GAP, toMinutes, fromMinutes, calcEnd, slotsProblem } from "./slotUt
 // problems shown live while the center is typing (doctor / missing start are checked on save)
 const LIVE_PROBLEMS = ["slotsNeedDuration", "slotsGap", "slotPastMidnight"];
 
+const sameName = (a, b) =>
+  String(a || "").replace(/\s+/g, " ").trim().toLowerCase() ===
+  String(b || "").replace(/\s+/g, " ").trim().toLowerCase();
+
 export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots, duration }) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -33,12 +37,38 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
     if (next.some((s, i) => s.end !== slots[i].end)) setSlots(next);
   }, [duration, slots]);
 
+  // old slots saved with a doctor name only: link them to the doctor when the name is unique
+  useEffect(() => {
+    if (!loaded || doctors.length === 0) return;
+
+    let changed = false;
+    const next = slots.map((s) => {
+      if (s.doctorId || !s.doctor) return s;
+      const matches = doctors.filter((d) => sameName(d.name, s.doctor));
+      if (matches.length !== 1) return s;
+      changed = true;
+      return { ...s, doctor: matches[0].name, doctorId: matches[0]._id };
+    });
+    if (changed) setSlots(next);
+  }, [loaded, doctors, slots]);
+
   const toggleDay = (d) => {
     setWorkDays(workDays.includes(d) ? workDays.filter((x) => x !== d) : [...workDays, d]);
   };
 
   const updateSlot = (i, field, value) => {
     setSlots(slots.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
+  };
+
+  // the doctor is chosen by id, so two doctors with the same name are never mixed up
+  const pickDoctor = (i, id) => {
+    if (id === "legacy") return;
+    const d = doctors.find((x) => x._id === id);
+    setSlots(
+      slots.map((s, idx) =>
+        idx === i ? { ...s, doctor: d ? d.name : "", doctorId: d ? d._id : "" } : s
+      )
+    );
   };
 
   // a new slot starts MIN_GAP minutes after the previous one ends
@@ -49,7 +79,10 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
       lastEnd !== null && lastEnd + MIN_GAP <= 23 * 60 + 59
         ? fromMinutes(lastEnd + MIN_GAP)
         : "09:00";
-    setSlots([...slots, { start, end: "", doctor: last?.doctor || "" }]);
+    setSlots([
+      ...slots,
+      { start, end: "", doctor: last?.doctor || "", doctorId: last?.doctorId || "" },
+    ]);
   };
 
   const removeSlot = (i) => setSlots(slots.filter((_, idx) => idx !== i));
@@ -68,8 +101,6 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
       return start < 480 || end > 1320;
     });
   const liveProblem = LIVE_PROBLEMS.includes(problem) ? problem : null;
-
-
 
   return (
     <div className="form-group">
@@ -136,39 +167,46 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
         </div>
       )}
 
-      {slots.map((s, i) => (
-        <div key={i} style={{
-          display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap",
-          border: "1px solid #ddd", borderRadius: "10px", padding: "10px", marginBottom: "8px",
-        }}>
-          <input type="time" className="styled-input" style={{ flex: 1, minWidth: 110 }}
-            value={s.start} onChange={(e) => updateSlot(i, "start", e.target.value)} />
-          <span>{t("to")}</span>
-          {/* the end time is calculated automatically */}
-          <input type="time" className="styled-input" style={{ flex: 1, minWidth: 110, background: "#f0f0f0" }}
-            value={calcEnd(s.start, duration)} disabled readOnly title={t("slotEnd")} />
+      {slots.map((s, i) => {
+        // a slot that has a name but no matching registered doctor
+        const unresolved = loaded && !s.doctorId && s.doctor;
 
-          <select
-            className="styled-input"
-            style={{ flex: 2, minWidth: 140 }}
-            value={s.doctor}
-            onChange={(e) => updateSlot(i, "doctor", e.target.value)}
-          >
-            <option value="">{t("selectDoctor")}</option>
-            {doctors.map((d) => (
-              <option key={d._id} value={d.name}>{d.name}</option>
-            ))}
-            {loaded && s.doctor && !doctors.some((d) => d.name === s.doctor) && (
-              <option value={s.doctor}>{s.doctor} ({t("notRegistered")})</option>
-            )}
-          </select>
+        return (
+          <div key={i} style={{
+            display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap",
+            border: "1px solid #ddd", borderRadius: "10px", padding: "10px", marginBottom: "8px",
+          }}>
+            <input type="time" className="styled-input" style={{ flex: 1, minWidth: 110 }}
+              value={s.start} onChange={(e) => updateSlot(i, "start", e.target.value)} />
+            <span>{t("to")}</span>
+            {/* the end time is calculated automatically */}
+            <input type="time" className="styled-input" style={{ flex: 1, minWidth: 110, background: "#f0f0f0" }}
+              value={calcEnd(s.start, duration)} disabled readOnly title={t("slotEnd")} />
 
-          <button type="button" onClick={() => removeSlot(i)}
-            style={{ background: "none", border: "none", color: "#c0392b", fontWeight: "bold", cursor: "pointer" }}>
-            {t("remove")}
-          </button>
-        </div>
-      ))}
+            <select
+              className="styled-input"
+              style={{ flex: 2, minWidth: 180 }}
+              value={s.doctorId || (unresolved ? "legacy" : "")}
+              onChange={(e) => pickDoctor(i, e.target.value)}
+            >
+              <option value="">{t("selectDoctor")}</option>
+              {doctors.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.name}{d.specialty ? ` — ${d.specialty}` : ""}
+                </option>
+              ))}
+              {unresolved && (
+                <option value="legacy">{s.doctor} ({t("notRegistered")})</option>
+              )}
+            </select>
+
+            <button type="button" onClick={() => removeSlot(i)}
+              style={{ background: "none", border: "none", color: "#c0392b", fontWeight: "bold", cursor: "pointer" }}>
+              {t("remove")}
+            </button>
+          </div>
+        );
+      })}
 
       {liveProblem && (
         <p style={{
@@ -179,7 +217,6 @@ export default function ScheduleEditor({ workDays, setWorkDays, slots, setSlots,
           {t(liveProblem)}
         </p>
       )}
-
 
       {closingProblem && (
         <p style={{
