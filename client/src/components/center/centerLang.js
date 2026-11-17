@@ -192,10 +192,33 @@ const dict = {
     notRegistered: "not registered",
     slotOutsideWorkingHours: "Appointments must start at or after 08:00 AM and finish by 10:00 PM.",
     doctorBusy: 'Dr. {doctor} is already booked in "{treatment}" from {start} to {end} on a shared working day. A doctor needs at least 5 minutes between two appointments.',
+    doctorLocation: "Branch",
+    selectBranch: "Select branch",
+    errBranch: "Choose the doctor's branch.",
+    noBranchesForDoctors: "You have not saved any branch locations yet. Add them in your Profile first, then register doctors.",
+    noBranch: "No branch assigned",
+    assignBranchHint: "These doctors have no branch yet. Choose one so they appear in that branch's treatments.",
+    doctorRemoved: "Doctor removed. {n} treatment(s) lost this doctor's time slots; they stay hidden from customers until you add new slots.",
+    doctorHasBookings: 'Dr. {doctor} still has {count} upcoming booking(s). You can remove the doctor after these appointments are finished.',
+    chooseLocationFirst: "Choose the treatment's location first to see its doctors.",
+    noDoctorsInBranch: "No doctors are registered in this branch yet. Add doctors to this branch first.",
+    doctorsResetNote: "Some doctors were removed from the slots because they do not work in the selected location. Choose the doctors again.",
+    doctorsLoadError: "Could not load your doctors. Make sure the server is running.",
+    unassignedDoctorsNote: "{n} doctor(s) have no branch and cannot be chosen. Assign them in the Doctors page.",
+    doctorsAnalysis: "Doctors Analysis",
+    doctorsBookingsChart: "Bookings per Doctor ({year})",
+    currentDoctors: "Current Doctors",
+    formerDoctors: "Former Doctors (left the center)",
+    formerDoctorsHint: "Their old bookings stay in the statistics.",
+    noCurrentDoctors: "No doctors registered yet.",
+    noFormerDoctors: "No doctors have left the center.",
+    doctorCol: "Doctor",
+    leftOn: "Left on",
+    unknownDoctor: "Not in the doctors list",
 
     doctorsTitle: "Center Doctors",
     doctorNameLbl: "Doctor Name",
-    doctorNamePh: "e.g. Dr. Aisha Al-Hadhrami",
+    doctorNamePh: "e.g. Dr.Ahmed Al-Balushi",
     specialty: "Specialty",
     specialtyPh: "e.g. Cupping therapy",
     errDoctorName: "Doctor name is required.",
@@ -203,7 +226,7 @@ const dict = {
     addDoctor: "Add Doctor",
     myDoctors: "Registered Doctors",
     noDoctors: "No doctors registered yet.",
-    confirmDeleteDoctor: 'Delete doctor "{name}"?',
+    confirmDeleteDoctor: 'Delete doctor "{name}"? The doctor will be removed from all treatment schedules. Past bookings and statistics stay.',
 
     updateCancelTitle: "Update and Cancel Appointment",
     refresh: "Refresh",
@@ -225,8 +248,7 @@ const dict = {
     priceC: "Price:",
     currentDate: "Current date:",
     newDate: "New Appointment Date",
-    hintDate:
-      "* The new date must be one of the treatment's working days and the same time slot must be free.",
+    hintDate: "* The new date must be one of the treatment's working days and the same time slot must be free.",
     saveNewDate: "Save New Date",
     differentDate: "Choose a different date from the current one.",
     checking: "Checking availability...",
@@ -411,10 +433,33 @@ const dict = {
     notRegistered: "غير مسجّل",
     slotOutsideWorkingHours: "يجب أن تبدأ المواعيد من 08:00 صباحاً وتنتهي قبل 10:00 مساءً.",
     doctorBusy: 'الدكتور {doctor} لديه موعد في علاج "{treatment}" من {start} إلى {end} في يوم عمل مشترك. يجب أن يكون بين موعدي الدكتور 5 دقائق على الأقل.',
+    doctorLocation: "الفرع",
+    selectBranch: "اختر الفرع",
+    errBranch: "اختر فرع الدكتور.",
+    noBranchesForDoctors: "لم تحفظ أي فروع بعد. أضف مواقع الفروع من ملفك الشخصي أولاً ثم سجّل الأطباء.",
+    noBranch: "بدون فرع",
+    assignBranchHint: "هؤلاء الأطباء بدون فرع. اختر لهم فرعاً حتى يظهروا في علاجات ذلك الفرع.",
+    doctorRemoved: "تم حذف الدكتور. {n} علاج فقد مواعيد هذا الدكتور، وسيبقى مخفياً عن العملاء حتى تضيف له مواعيد جديدة.",
+    doctorHasBookings: 'الدكتور {doctor} لديه {count} حجز قادم. يمكنك حذفه بعد انتهاء هذه المواعيد.',
+    chooseLocationFirst: "اختر موقع العلاج أولاً لتظهر أطباء ذلك الفرع.",
+    noDoctorsInBranch: "لا يوجد أطباء مسجلون في هذا الفرع بعد. أضف أطباء لهذا الفرع أولاً.",
+    doctorsResetNote: "تم إزالة بعض الأطباء من المواعيد لأنهم لا يعملون في الموقع المختار. اختر الأطباء من جديد.",
+    doctorsLoadError: "تعذّر تحميل الأطباء. تأكد أن السيرفر شغّال.",
+    unassignedDoctorsNote: "{n} دكتور بدون فرع ولا يمكن اختيارهم. حدّد فرعهم من صفحة الأطباء.",
+    doctorsAnalysis: "تحليل الأطباء",
+    doctorsBookingsChart: "الحجوزات لكل دكتور ({year})",
+    currentDoctors: "الأطباء الحاليون",
+    formerDoctors: "الأطباء السابقون (غادروا المركز)",
+    formerDoctorsHint: "حجوزاتهم القديمة تبقى في الإحصائيات.",
+    noCurrentDoctors: "لا يوجد أطباء مسجلون بعد.",
+    noFormerDoctors: "لم يغادر أي دكتور المركز.",
+    doctorCol: "الدكتور",
+    leftOn: "تاريخ المغادرة",
+    unknownDoctor: "غير موجود في قائمة الأطباء",
 
     doctorsTitle: "أطباء المركز",
     doctorNameLbl: "اسم الدكتور",
-    doctorNamePh: "مثال: د. عائشة الحضرمي",
+    doctorNamePh: "مثال: د.أحمد البلوشي",
     specialty: "التخصص",
     specialtyPh: "مثال: العلاج بالحجامة",
     errDoctorName: "اسم الدكتور مطلوب.",
@@ -422,7 +467,7 @@ const dict = {
     addDoctor: "إضافة دكتور",
     myDoctors: "الأطباء المسجلون",
     noDoctors: "لا يوجد أطباء مسجلون بعد.",
-    confirmDeleteDoctor: 'هل تريد حذف الدكتور "{name}"؟',
+    confirmDeleteDoctor: 'هل تريد حذف الدكتور "{name}"؟ سيتم إزالته من جداول جميع العلاجات، وتبقى الحجوزات السابقة والإحصائيات.',
 
     updateCancelTitle: "تعديل وإلغاء المواعيد",
     refresh: "تحديث",
@@ -517,6 +562,12 @@ const dict = {
     "srv:This doctor is already registered with the same specialty": "هذا الدكتور مسجّل مسبقاً بنفس التخصص",
     "srv:Choose the doctor from the list (two doctors have the same name)": "اختر الدكتور من القائمة (يوجد دكتوران بنفس الاسم)",
     "srv:Appointments must start at or after 08:00 AM and finish by 10:00 PM": "يجب أن تبدأ المواعيد من 08:00 صباحاً وتنتهي قبل 10:00 مساءً",
+    "srv:Choose the doctor's location": "اختر فرع الدكتور",
+    "srv:Assign a location to this doctor first": "حدّد فرع هذا الدكتور أولاً من صفحة الأطباء",
+    "srv:This doctor does not work in this treatment's location": "هذا الدكتور لا يعمل في موقع هذا العلاج",
+    "srv:This doctor is used in a treatment at another location. Change that treatment first.": "هذا الدكتور مستخدم في علاج بفرع آخر. غيّر ذلك العلاج أولاً",
+    "srv:This location has doctors. Move or delete the doctors first.": "هذا الموقع فيه أطباء. انقل الأطباء أو احذفهم أولاً",
+    "srv:At least one time slot is required": "أضف موعداً واحداً على الأقل",
 
 
   },
@@ -536,17 +587,24 @@ export function useLang() {
     return text;
   };
 
-  // translates known server messages, leaves the others as they are
+  // server messages that carry data: "PREFIX:{json}" -> a translated sentence
+  const SRV_JSON = { "DOCTOR_BUSY:": "doctorBusy", "DOCTOR_HAS_BOOKINGS:": "doctorHasBookings" };
+
   // translates known server messages, leaves the others as they are
   const ts = (message) => {
-    if (typeof message === "string" && message.startsWith("DOCTOR_BUSY:")) {
-      try {
-        return t("doctorBusy", JSON.parse(message.slice("DOCTOR_BUSY:".length)));
-      } catch (error) {
-        return message;
+    if (typeof message === "string") {
+      for (const prefix of Object.keys(SRV_JSON)) {
+        if (message.startsWith(prefix)) {
+          try {
+            return t(SRV_JSON[prefix], JSON.parse(message.slice(prefix.length)));
+          } catch (error) {
+            return message;
+          }
+        }
       }
     }
     return dict[lang]["srv:" + message] ?? message;
   };
+
   return { lang, t, ts, toggleLang, isAr: lang === "ar" };
 }

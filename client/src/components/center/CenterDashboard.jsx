@@ -4,7 +4,7 @@ import {
   MdOutlineCalendarMonth, MdOutlineReviews, MdMedicalServices,
   MdAccessTime, MdFilterList, MdTrendingUp, MdAttachMoney,
 } from "react-icons/md";
-import { FaUserAlt, FaStar } from "react-icons/fa";
+import { FaUserAlt, FaStar, FaUserMd } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -82,6 +82,9 @@ const getReviewTime = (createdAt) => {
   return `${years} years ago`;
 };
 
+const nameKey = (v) => String(v || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+
 export default function CenterDashboard() {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -89,6 +92,7 @@ export default function CenterDashboard() {
 
   const [bookings, setBookings] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [doctors, setDoctors] = useState([]);
 
   const [filterDate, setFilterDate] = useState("");
   const [showAllBookings, setShowAllBookings] = useState(false);
@@ -101,6 +105,17 @@ export default function CenterDashboard() {
       navigate("/login");
       return;
     }
+
+    const loadDoctors = async () => {
+      try {
+        const res = await fetch(`http://localhost:3002/doctors/center/${user._id}?all=1`);
+        const result = await res.json();
+        if (result.message === "success") setDoctors(result.doctors || []);
+      } catch (error) {
+        console.log("Load Doctors Error:", error);
+      }
+    };
+    loadDoctors();
 
     const loadBookings = async () => {
       try {
@@ -191,6 +206,98 @@ export default function CenterDashboard() {
   );
   const grandTotal = monthTotals.reduce((a, b) => a + b, 0);
   const grandRevenue = monthlyTable.reduce((sum, r) => sum + r.revenue, 0);
+  // ===== Doctors analysis (selected year) =====
+  const doctorIds = new Set(doctors.map((d) => String(d._id)));
+  const idByName = new Map(); // null when two doctors share the same name
+  doctors.forEach((d) => {
+    const k = nameKey(d.name);
+    idByName.set(k, idByName.has(k) ? null : String(d._id));
+  });
+
+  const doctorRows = doctors.map((d) => ({
+    key: String(d._id),
+    name: d.name,
+    specialty: d.specialty,
+    branch: d.locationName,
+    active: d.isActive !== false,
+    leftAt: d.deletedAt,
+    bookings: [],
+  }));
+  const rowByKey = new Map(doctorRows.map((r) => [r.key, r]));
+
+  yearBookings.forEach((b) => {
+    if (!b.doctorId && !b.doctor) return;
+
+    let key = b.doctorId && doctorIds.has(String(b.doctorId)) ? String(b.doctorId) : idByName.get(nameKey(b.doctor));
+
+    // an old booking of a doctor who is not in the list at all
+    if (!key) {
+      key = "name:" + nameKey(b.doctor);
+      if (!rowByKey.has(key)) {
+        const r = { key, name: b.doctor, specialty: "", branch: "", active: false, leftAt: null, unknown: true, bookings: [] };
+        doctorRows.push(r);
+        rowByKey.set(key, r);
+      }
+    }
+    rowByKey.get(key).bookings.push(b);
+  });
+
+  const doctorStats = doctorRows.map((r) => ({
+    ...r,
+    perMonth: MONTH_KEYS.map((_, i) =>
+      r.bookings.filter((b) => b.date.startsWith(`${filterYear}-${String(i + 1).padStart(2, "0")}`)).length
+    ),
+    total: r.bookings.length,
+    revenue: r.bookings.reduce((sum, b) => sum + b.price, 0),
+  }));
+  const currentDoctors = doctorStats.filter((r) => r.active);
+  const formerDoctors = doctorStats.filter((r) => !r.active);
+  const doctorLabel = (r) => (r.specialty ? `${r.name} — ${r.specialty}` : r.name);
+  const doctorChartData = doctorStats
+    .filter((r) => r.active || r.total > 0)
+    .map((r) => ({ name: doctorLabel(r), total: r.total }));
+  const doctorsGrandTotal = doctorStats.reduce((s, r) => s + r.total, 0);
+  const doctorsGrandRevenue = doctorStats.reduce((s, r) => s + r.revenue, 0);
+
+  const renderDoctorTable = (rows, showLeft) => (
+    <div style={{ overflowX: "auto", marginTop: "10px" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...thStyle, textAlign: "start" }}>{t("doctorCol")}</th>
+            <th style={thStyle}>{t("location")}</th>
+            {MONTH_KEYS.map((key) => (
+              <th key={key} style={thStyle}>{t(key)}</th>
+            ))}
+            <th style={thStyle}>{t("total")}</th>
+            <th style={thStyle}>{t("revenueCol")}</th>
+            {showLeft && <th style={thStyle}>{t("leftOn")}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <td style={{ ...tdStyle, textAlign: "start", fontWeight: "bold" }}>
+                {doctorLabel(r)}
+                {r.unknown && (
+                  <div style={{ fontSize: "12px", color: "#999", fontWeight: "normal" }}>{t("unknownDoctor")}</div>
+                )}
+              </td>
+              <td style={tdStyle}>{r.branch || "—"}</td>
+              {r.perMonth.map((n, i) => (
+                <td key={i} style={{ ...tdStyle, color: n === 0 ? "#bbb" : "#000" }}>{n}</td>
+              ))}
+              <td style={{ ...tdStyle, fontWeight: "bold" }}>{r.total}</td>
+              <td style={tdStyle}>{r.revenue} {t("omr")}</td>
+              {showLeft && (
+                <td style={tdStyle}>{r.leftAt ? new Date(r.leftAt).toISOString().slice(0, 10) : "—"}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   const YearSelect = () => (
     <div className="filter-item">
@@ -238,6 +345,14 @@ export default function CenterDashboard() {
           <MdMedicalServices className="card-icon" />
           <p>{t("servicesAnalysis")}</p>
           <h3>{allServicesCount}</h3>
+        </div>
+        <div
+          className={`card clickable-card ${activeCard === "doctors" ? "active-card" : ""}`}
+          onClick={() => setActiveCard(activeCard === "doctors" ? "" : "doctors")}
+        >
+          <FaUserMd className="card-icon" />
+          <p>{t("doctorsAnalysis")}</p>
+          <h3>{currentDoctors.length}</h3>
         </div>
       </div> <br></br>
 
@@ -750,6 +865,60 @@ export default function CenterDashboard() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {activeCard === "doctors" && (
+        <div className="output-section">
+          <div style={chartBox}>
+            <h2 style={chartTitle}>{t("doctorsAnalysis")} ({filterYear})</h2>
+
+            <div className="filter-container-row" style={{ marginBottom: "15px" }}>
+              <YearSelect />
+            </div>
+
+            <div className="analysis-summary-row">
+              <div className="summary-mini-card">
+                <MdTrendingUp color="#76a37b" />
+                <span>{t("bookingsLbl")} <strong>{doctorsGrandTotal}</strong></span>
+              </div>
+              <div className="summary-mini-card">
+                <MdAttachMoney color="#2c3123" />
+                <span>{t("revenueLbl")} <strong>{doctorsGrandRevenue} {t("omr")}</strong></span>
+              </div>
+            </div>
+
+            {doctorChartData.length > 0 && (
+              <div style={{ width: "100%", overflowX: "auto", marginTop: "25px", marginBottom: "25px" }} dir="ltr">
+                <h3 style={{ ...chartTitle, fontSize: "18px", marginBottom: "10px" }}>
+                  {t("doctorsBookingsChart", { year: filterYear })}
+                </h3>
+                <div style={{ minWidth: "650px", height: 350 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={doctorChartData} margin={{ top: 20, right: 20, left: 0, bottom: 40 }} barCategoryGap="35%">
+                      <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#E8EDE9" />
+                      <XAxis dataKey="name" interval={0} angle={-15} textAnchor="end" tick={axisTick} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: "#F3F7F4" }} />
+                      <Bar dataKey="total" name={t("bookings")} fill="#79A99D" radius={[8, 8, 0, 0]} maxBarSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            <h3 style={{ color: "#2e6b3a", marginTop: "25px" }}>{t("currentDoctors")} ({currentDoctors.length})</h3>
+            {currentDoctors.length === 0
+              ? <p style={{ color: "#777" }}>{t("noCurrentDoctors")}</p>
+              : renderDoctorTable(currentDoctors, false)}
+
+            <h3 style={{ color: "#b9650f", marginTop: "30px", marginBottom: "4px" }}>
+              {t("formerDoctors")} ({formerDoctors.length})
+            </h3>
+            <p style={{ color: "#777", fontSize: "13px", margin: "0 0 6px" }}>{t("formerDoctorsHint")}</p>
+            {formerDoctors.length === 0
+              ? <p style={{ color: "#777" }}>{t("noFormerDoctors")}</p>
+              : renderDoctorTable(formerDoctors, true)}
           </div>
         </div>
       )}

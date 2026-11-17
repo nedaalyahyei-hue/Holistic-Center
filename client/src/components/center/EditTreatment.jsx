@@ -197,6 +197,7 @@ export default function EditTretment() {
             clearError("slots");
           }}
           duration={Number(treatment.duration)}
+          location={treatment.location}
         />
         <FieldError text={err("workDays")} />
         <FieldError text={errors.slots && isFormLevelSlotError(errors.slots) ? t(errors.slots) : ""} />

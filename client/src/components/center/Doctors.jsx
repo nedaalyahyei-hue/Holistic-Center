@@ -16,8 +16,9 @@ export default function Doctors() {
   const user = JSON.parse(localStorage.getItem("user"));
 
   const [doctors, setDoctors] = useState([]);
+  const [locations, setLocations] = useState([]); // the branches saved in the center profile
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ name: "", specialty: "" });
+  const [form, setForm] = useState({ name: "", specialty: "", locationId: "" });
   const [errors, setErrors] = useState({}); // field -> translation key
 
   useEffect(() => {
@@ -26,11 +27,21 @@ export default function Doctors() {
       return;
     }
 
-    const loadDoctors = async () => {
+    const loadData = async () => {
       try {
-        const res = await fetch(`${API}/doctors/center/${user._id}`);
-        const result = await res.json();
-        if (result.message === "success") setDoctors(result.doctors);
+        const [docRes, centerRes] = await Promise.all([
+          fetch(`${API}/doctors/center/${user._id}`),
+          fetch(`${API}/center/${user._id}`),
+        ]);
+        const docs = await docRes.json();
+        const center = await centerRes.json();
+
+        if (docs.message === "success") setDoctors(docs.doctors);
+        if (center.message === "success") {
+          setLocations(
+            (center.center.locations || []).map((l) => ({ _id: String(l._id), name: l.name }))
+          );
+        }
       } catch (error) {
         console.log(error);
       } finally {
@@ -38,7 +49,7 @@ export default function Doctors() {
       }
     };
 
-    loadDoctors();
+    loadData();
   }, []);
 
   const handleChange = (e) => {
@@ -50,10 +61,11 @@ export default function Doctors() {
   const handleAdd = async (e) => {
     e.preventDefault();
 
-    // the name and the specialty are both required
+    // the name, the specialty and the branch are all required
     const found = {};
     if (!form.name.trim()) found.name = "errDoctorName";
     if (form.specialty.trim().length < 2) found.specialty = "errSpecialty";
+    if (!form.locationId) found.locationId = "errBranch";
     setErrors(found);
     if (Object.keys(found).length > 0) {
       scrollToFirstError();
@@ -68,15 +80,18 @@ export default function Doctors() {
           centerId: user._id,
           name: form.name,
           specialty: form.specialty,
+          locationId: form.locationId,
         }),
       });
       const result = await res.json();
 
       if (result.message === "success") {
         setDoctors((prev) =>
-          [...prev, result.doctor].sort((a, b) => a.name.localeCompare(b.name))
+          [...prev.filter((d) => d._id !== result.doctor._id), result.doctor].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          )
         );
-        setForm({ name: "", specialty: "" });
+        setForm({ name: "", specialty: "", locationId: form.locationId });
       } else {
         alert(ts(result.message));
       }
@@ -96,6 +111,9 @@ export default function Doctors() {
 
       if (result.message === "success") {
         setDoctors((prev) => prev.filter((d) => d._id !== doctor._id));
+        if (result.treatmentsUpdated > 0) {
+          alert(t("doctorRemoved", { n: result.treatmentsUpdated }));
+        }
       } else {
         alert(ts(result.message));
       }
@@ -103,6 +121,80 @@ export default function Doctors() {
       alert(t("serverError"));
     }
   };
+
+  // move a doctor to another branch (or give a branch to an old doctor who has none)
+  const handleBranchChange = async (doctor, locationId) => {
+    if (!locationId || locationId === String(doctor.locationId || "")) return;
+
+    try {
+      const res = await fetch(`${API}/doctors/${doctor._id}/location`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ centerId: user._id, locationId }),
+      });
+      const result = await res.json();
+
+      if (result.message === "success") {
+        setDoctors((prev) => prev.map((d) => (d._id === doctor._id ? result.doctor : d)));
+      } else {
+        alert(ts(result.message));
+      }
+    } catch (error) {
+      alert(t("serverError"));
+    }
+  };
+
+  // doctors grouped by branch; the doctors without a branch come first
+  const knownIds = new Set(locations.map((l) => l._id));
+  const withoutBranch = doctors.filter((d) => !d.locationId || !knownIds.has(String(d.locationId)));
+  const groups = [
+    ...(withoutBranch.length > 0
+      ? [{ id: "none", title: t("noBranch"), list: withoutBranch, warn: true }]
+      : []),
+    ...locations
+      .map((l) => ({
+        id: l._id,
+        title: l.name,
+        list: doctors.filter((d) => String(d.locationId || "") === l._id),
+        warn: false,
+      }))
+      .filter((g) => g.list.length > 0),
+  ];
+
+  const renderDoctor = (d, warn) => (
+    <div key={d._id} className="category-row" style={{ flexWrap: "wrap", gap: "8px" }}>
+      <span className="category-name">
+        {d.name}
+        {d.specialty ? ` — ${d.specialty}` : ""}
+      </span>
+      <div className="action-buttons" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <select
+          className="styled-input"
+          style={{
+            minWidth: 150,
+            ...(warn ? { border: "1px solid #e67e22" } : {}),
+          }}
+          value={warn ? "" : String(d.locationId || "")}
+          onChange={(e) => handleBranchChange(d, e.target.value)}
+          title={t("doctorLocation")}
+        >
+          {warn && (
+            <option value="" disabled>
+              {t("selectBranch")}
+            </option>
+          )}
+          {locations.map((l) => (
+            <option key={l._id} value={l._id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <button className="btn-dark delete-btn" onClick={() => handleDelete(d)}>
+          {t("delete")}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <CenterShell active="doctors">
@@ -113,6 +205,35 @@ export default function Doctors() {
         style={{ width: "180px", marginBottom: "10px" }}
       />
       <h2 className="title">{t("doctorsTitle")}</h2>
+
+      {!loading && locations.length === 0 && (
+        <div
+          style={{
+            border: "2px solid #e67e22",
+            borderRadius: "10px",
+            padding: "12px",
+            marginBottom: "15px",
+            color: "#b9650f",
+          }}
+        >
+          <p style={{ margin: "0 0 8px" }}>{t("noBranchesForDoctors")}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/center/center-profile")}
+            style={{
+              background: "#76a37b",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              padding: "8px 14px",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            {t("goToProfile")}
+          </button>
+        </div>
+      )}
 
       <form className="form-box" onSubmit={handleAdd} noValidate style={{ marginBottom: "20px" }}>
         <div className="form-group">
@@ -143,6 +264,25 @@ export default function Doctors() {
           <FieldError text={errors.specialty ? t(errors.specialty) : ""} />
         </div>
 
+        <div className="form-group">
+          <label className="card-label">{t("doctorLocation")}<Req /></label>
+          <select
+            name="locationId"
+            className="styled-input"
+            style={errors.locationId ? { border: "1px solid #c0392b" } : undefined}
+            value={form.locationId}
+            onChange={handleChange}
+          >
+            <option value="">{t("selectBranch")}</option>
+            {locations.map((l) => (
+              <option key={l._id} value={l._id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+          <FieldError text={errors.locationId ? t(errors.locationId) : ""} />
+        </div>
+
         <div className="form-actions" style={{ marginTop: "10px" }}>
           <button type="submit" className="save-btn" style={{ width: "100%" }}>
             {t("addDoctor")}
@@ -158,17 +298,24 @@ export default function Doctors() {
           <p style={{ padding: 15 }}>{t("noDoctors")}</p>
         )}
 
-        {doctors.map((d) => (
-          <div key={d._id} className="category-row">
-            <span className="category-name">
-              {d.name}
-              {d.specialty ? ` — ${d.specialty}` : ""}
-            </span>
-            <div className="action-buttons">
-              <button className="btn-dark delete-btn" onClick={() => handleDelete(d)}>
-                {t("delete")}
-              </button>
+        {groups.map((g) => (
+          <div key={g.id}>
+            <div
+              style={{
+                padding: "10px 15px",
+                fontWeight: "bold",
+                color: g.warn ? "#b9650f" : "#2e6b3a",
+                background: g.warn ? "#fdf1e3" : "#eef5ef",
+              }}
+            >
+              {g.title} ({g.list.length})
+              {g.warn && (
+                <div style={{ fontWeight: "normal", fontSize: "13px", marginTop: "4px" }}>
+                  {t("assignBranchHint")}
+                </div>
+              )}
             </div>
+            {g.list.map((d) => renderDoctor(d, g.warn))}
           </div>
         ))}
       </div>

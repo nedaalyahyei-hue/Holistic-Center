@@ -8,9 +8,7 @@ import CategorySelect from "./CategorySelect";
 import LocationSelect from "./LocationSelect";
 import CenterShell from "./CenterShell";
 import { useLang } from "./centerLang";
-import {
-  Req, FieldError, validateTreatment, isFormLevelSlotError, scrollToFirstError,
-} from "./formHelpers";
+import { Req, FieldError, validateTreatment, isFormLevelSlotError, scrollToFirstError, } from "./formHelpers";
 
 export default function AddTreatment() {
   const navigate = useNavigate();
@@ -180,6 +178,7 @@ export default function AddTreatment() {
             clearError("slots");
           }}
           duration={Number(form.duration)}
+          location={form.location}
         />
         <FieldError text={err("workDays")} />
         <FieldError text={errors.slots && isFormLevelSlotError(errors.slots) ? t(errors.slots) : ""} />

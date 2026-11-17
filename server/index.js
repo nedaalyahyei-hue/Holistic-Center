@@ -739,6 +739,20 @@ app.put("/center/:id", async (req, res) => {
         return res.send({ message: "This map location is already used by another center" });
       }
 
+      // a location that still has doctors cannot be removed (rename is fine: doctors follow the location id)
+      const keptIds = new Set(rows.filter((r) => r.old).map((r) => r.old.id));
+      const removedIds = oldLocations.filter((o) => !keptIds.has(o.id)).map((o) => o.id);
+      if (removedIds.length > 0) {
+        const hasDoctors = await DoctorModel.exists({
+          centerId: center._id,
+          locationId: { $in: removedIds },
+          isActive: { $ne: false },
+        });
+        if (hasDoctors) {
+          return res.send({ message: "This location has doctors. Move or delete the doctors first." });
+        }
+      }
+
       const finalNames = new Set(rows.map((r) => r.name));
       const renameMap = new Map();
       rows.forEach((r) => {
@@ -1110,6 +1124,11 @@ const DoctorSchema = new mongoose.Schema(
     nameKey: { type: String, required: true },       // lower case name
     specialty: { type: String, trim: true, default: "" },
     specialtyKey: { type: String, default: "" },     // lower case specialty
+    // the branch (a saved location of the center, by id) where the doctor works: one branch per doctor
+    locationId: { type: mongoose.Schema.Types.ObjectId },
+    // a doctor who left the center is not deleted: he stays as a former doctor (bookings + statistics)
+    isActive: { type: Boolean, default: true },
+    deletedAt: Date,
   },
   { timestamps: true }
 );
@@ -1120,10 +1139,45 @@ DoctorSchema.index({ centerId: 1, nameKey: 1, specialtyKey: 1 }, { unique: true 
 
 const DoctorModel = mongoose.model("DOCTOR", DoctorSchema, "DOCTOR");
 
-// Add a doctor to a center (name and specialty are both required)
+// Add a doctor to a center (name, specialty and branch are all required)
+
+// the name of every saved location of a center: locationId -> name
+async function centerLocationMap(centerId) {
+  const center = await UserModel.findOne({ _id: centerId, role: "center" }).select("locations");
+  const map = new Map((center?.locations || []).map((l) => [String(l._id), l.name]));
+  return { center, map };
+}
+
+// a doctor as the pages need it: with the name of his branch
+function doctorView(doc, map) {
+  const d = typeof doc.toObject === "function" ? doc.toObject() : doc;
+  return { ...d, locationName: d.locationId ? map.get(String(d.locationId)) || "" : "" };
+}
+
+// A name that is shared by two doctors of the center cannot be used to find old slots / bookings
+async function legacyNameAllowed(doctor) {
+  const shared = await DoctorModel.exists({
+    centerId: doctor.centerId,
+    nameKey: doctor.nameKey,
+    _id: { $ne: doctor._id },
+  });
+  return !shared;
+}
+
+// the slots of a doctor inside the treatments (by id; old slots without an id by name)
+const doctorSlotQuery = (doctor, legacy) =>
+  legacy
+    ? { $or: [{ doctorId: doctor._id }, { doctorId: { $exists: false }, doctor: doctor.name }] }
+    : { doctorId: doctor._id };
+
+const slotIsOfDoctor = (slot, doctor, legacy) =>
+  slot.doctorId
+    ? String(slot.doctorId) === String(doctor._id)
+    : legacy && textKey(slot.doctor) === doctor.nameKey;
+
 app.post("/doctors", async (req, res) => {
   try {
-    const { centerId, name, specialty } = req.body;
+    const { centerId, name, specialty, locationId } = req.body;
 
     if (!mongoose.isValidObjectId(centerId)) return res.send({ message: "Invalid center" });
 
@@ -1133,26 +1187,44 @@ app.post("/doctors", async (req, res) => {
     const cleanSpecialty = cleanText(specialty);
     if (cleanSpecialty.length < 2) return res.send({ message: "Specialty is required" });
 
-    const center = await UserModel.findOne({ _id: centerId, role: "center" });
+    const { center, map } = await centerLocationMap(centerId);
     if (!center) return res.send({ message: "Center not found" });
+
+    // every doctor belongs to exactly one branch of the center
+    if (!mongoose.isValidObjectId(locationId) || !map.has(String(locationId))) {
+      return res.send({ message: "Choose the doctor's location" });
+    }
 
     const nameKey = textKey(cleanName);
     const specialtyKey = textKey(cleanSpecialty);
 
-    const duplicate = await DoctorModel.exists({ centerId, nameKey, specialtyKey });
-    if (duplicate) {
+    const existing = await DoctorModel.findOne({ centerId, nameKey, specialtyKey });
+    if (existing && existing.isActive !== false) {
       return res.send({ message: "This doctor is already registered with the same specialty" });
     }
 
-    const doctor = await DoctorModel.create({
-      centerId,
-      name: cleanName,
-      nameKey,
-      specialty: cleanSpecialty,
-      specialtyKey,
-    });
+    let doctor;
+    if (existing) {
+      // a doctor who left the center earlier comes back: his old bookings stay linked to him
+      existing.isActive = true;
+      existing.deletedAt = undefined;
+      existing.name = cleanName;
+      existing.specialty = cleanSpecialty;
+      existing.locationId = locationId;
+      doctor = await existing.save();
+    } else {
+      doctor = await DoctorModel.create({
+        centerId,
+        name: cleanName,
+        nameKey,
+        specialty: cleanSpecialty,
+        specialtyKey,
+        locationId,
+        isActive: true,
+      });
+    }
 
-    res.send({ message: "success", doctor });
+    res.send({ message: "success", doctor: doctorView(doctor, map) });
   } catch (error) {
     if (error.code === 11000) {
       return res.send({ message: "This doctor is already registered with the same specialty" });
@@ -1161,48 +1233,115 @@ app.post("/doctors", async (req, res) => {
   }
 });
 
-// Doctors of one center
+// Doctors of one center. By default only the doctors who work in the center now.
+// ?all=1 also returns the doctors who left (the dashboard needs them for the statistics).
 app.get("/doctors/center/:centerId", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.centerId)) {
       return res.send({ message: "Invalid center" });
     }
-    const doctors = await DoctorModel.find({ centerId: req.params.centerId }).sort({ name: 1, specialty: 1 });
-    res.send({ message: "success", doctors });
+
+    const filter = { centerId: req.params.centerId };
+    if (req.query.all !== "1") filter.isActive = { $ne: false };
+
+    const { map } = await centerLocationMap(req.params.centerId);
+    const doctors = await DoctorModel.find(filter).sort({ name: 1, specialty: 1 }).lean();
+
+    res.send({ message: "success", doctors: doctors.map((d) => doctorView(d, map)) });
   } catch (error) {
     res.send({ message: "Get Doctors Error: " + error.message });
   }
 });
 
+// Change the branch of a doctor. Not allowed while a treatment of another branch uses him.
+app.put("/doctors/:id/location", async (req, res) => {
+  try {
+    const { centerId, locationId } = req.body;
+
+    if (!mongoose.isValidObjectId(req.params.id)) return res.send({ message: "Doctor not found" });
+
+    const doctor = await DoctorModel.findById(req.params.id);
+    if (!doctor || doctor.isActive === false) return res.send({ message: "Doctor not found" });
+
+    if (!centerId || String(doctor.centerId) !== String(centerId)) {
+      return res.send({ message: "Doctor not found" });
+    }
+
+    const { map } = await centerLocationMap(doctor.centerId);
+    if (!mongoose.isValidObjectId(locationId) || !map.has(String(locationId))) {
+      return res.send({ message: "Choose the doctor's location" });
+    }
+
+    const newName = map.get(String(locationId));
+    const legacy = await legacyNameAllowed(doctor);
+    const treatments = await TreatmentModel.find({
+      centerId: doctor.centerId,
+      slots: { $elemMatch: doctorSlotQuery(doctor, legacy) },
+    }).select("location");
+
+    if (treatments.some((tr) => tr.location !== newName)) {
+      return res.send({
+        message: "This doctor is used in a treatment at another location. Change that treatment first.",
+      });
+    }
+
+    await DoctorModel.updateOne({ _id: doctor._id }, { $set: { locationId } });
+
+    const saved = await DoctorModel.findById(doctor._id);
+    res.send({ message: "success", doctor: doctorView(saved, map) });
+  } catch (error) {
+    res.send({ message: "Update Doctor Error: " + error.message });
+  }
+});
+
 // Delete a doctor: /doctors/:id?centerId=...
+// - a doctor with upcoming bookings cannot be deleted
+// - otherwise he is removed from the treatment schedules (new appointments), but his record stays
+//   as a former doctor, so the old bookings and the statistics keep his name
 app.delete("/doctors/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.send({ message: "Doctor not found" });
 
     const doctor = await DoctorModel.findById(req.params.id);
-    if (!doctor) return res.send({ message: "Doctor not found" });
+    if (!doctor || doctor.isActive === false) return res.send({ message: "Doctor not found" });
 
     if (!req.query.centerId || String(doctor.centerId) !== String(req.query.centerId)) {
       return res.send({ message: "Doctor not found" });
     }
 
-    // a doctor used in a treatment schedule cannot be deleted
-    // (checked by doctorId; old slots without an id are checked by name)
-    const used = await TreatmentModel.exists({
-      centerId: doctor.centerId,
-      slots: {
-        $elemMatch: {
-          $or: [
-            { doctorId: doctor._id },
-            { doctorId: { $exists: false }, doctor: doctor.name },
-          ],
-        },
-      },
-    });
-    if (used) return res.send({ message: "This doctor is used in a treatment schedule" });
+    const legacy = await legacyNameAllowed(doctor);
 
-    await DoctorModel.findByIdAndDelete(doctor._id);
-    res.send({ message: "success" });
+    // upcoming bookings (today or later) that were not cancelled
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = await BookingModel.countDocuments({
+      centerId: doctor.centerId,
+      status: { $ne: "cancelled" },
+      date: { $gte: today },
+      ...doctorSlotQuery(doctor, legacy),
+    });
+    if (upcoming > 0) {
+      return res.send({
+        message: "DOCTOR_HAS_BOOKINGS:" + JSON.stringify({ doctor: doctor.name, count: upcoming }),
+      });
+    }
+
+    // remove the doctor from the schedules of all treatments of the center
+    const treatments = await TreatmentModel.find({
+      centerId: doctor.centerId,
+      slots: { $elemMatch: doctorSlotQuery(doctor, legacy) },
+    }).lean();
+
+    for (const tr of treatments) {
+      const slots = tr.slots.filter((s) => !slotIsOfDoctor(s, doctor, legacy));
+      await TreatmentModel.updateOne({ _id: tr._id }, { $set: { slots } });
+    }
+
+    await DoctorModel.updateOne(
+      { _id: doctor._id },
+      { $set: { isActive: false, deletedAt: new Date() } }
+    );
+
+    res.send({ message: "success", treatmentsUpdated: treatments.length });
   } catch (error) {
     res.send({ message: "Delete Doctor Error: " + error.message });
   }
@@ -1441,15 +1580,25 @@ function checkSlots(slots, duration) {
   return null;
 }
 
-// Every doctor in the slots must be registered in the same center.
+// Every doctor in the slots must be registered in the same center AND work in the treatment's location.
 // Returns { error } or { slots } where every slot has the doctor's real name + doctorId.
-async function resolveSlotDoctors(centerId, slots) {
+async function resolveSlotDoctors(centerId, slots, locationName) {
   if (!mongoose.isValidObjectId(centerId)) return { error: "Invalid center" };
   if (!Array.isArray(slots) || slots.length === 0) {
     return { error: "At least one time slot is required" };
   }
 
-  const doctors = await DoctorModel.find({ centerId });
+  // the branch of the treatment (a saved location of the center)
+  const { map } = await centerLocationMap(centerId);
+  const wanted = String(locationName ?? "").trim();
+  let locationId = null;
+  for (const [id, name] of map) {
+    if (name === wanted) locationId = id;
+  }
+  if (!locationId) return { error: "Choose a location from your saved locations" };
+
+  // only the doctors who work in the center now
+  const doctors = await DoctorModel.find({ centerId, isActive: { $ne: false } });
   const byId = new Map(doctors.map((d) => [String(d._id), d]));
   const resolved = [];
 
@@ -1471,6 +1620,10 @@ async function resolveSlotDoctors(centerId, slots) {
     }
 
     if (!doc) return { error: "Choose a doctor from your registered doctors" };
+    if (!doc.locationId) return { error: "Assign a location to this doctor first" };
+    if (String(doc.locationId) !== locationId) {
+      return { error: "This doctor does not work in this treatment's location" };
+    }
 
     resolved.push({ start: s.start, end: s.end, doctor: doc.name, doctorId: doc._id });
   }
@@ -1537,7 +1690,7 @@ async function migrateDoctors() {
     // 2) remove the old index (name only) and build the new one (name + specialty)
     try {
       await DoctorModel.collection.dropIndex("centerId_1_nameKey_1");
-      console.log("..");
+      console.log("Old doctor index removed");
     } catch (e) {
       /* the old index does not exist (already removed) */
     }
@@ -1570,7 +1723,64 @@ async function migrateDoctors() {
     }
     if (slotOps.length) await TreatmentModel.bulkWrite(slotOps);
 
-    console.log("..");
+    // 4) every doctor works in the center unless he was removed
+    await DoctorModel.updateMany({ isActive: { $exists: false } }, { $set: { isActive: true } });
+
+    // 5) an old doctor gets the branch of his center when the center has only one branch
+    const noBranch = await DoctorModel.find({ locationId: { $exists: false } }).select("centerId");
+    if (noBranch.length) {
+      const centerIds = [...new Set(noBranch.map((d) => String(d.centerId)))];
+      const centerUsers = await UserModel.find({ _id: { $in: centerIds } }).select("locations");
+      const onlyBranch = new Map();
+      centerUsers.forEach((c) => {
+        if ((c.locations || []).length === 1) onlyBranch.set(String(c._id), c.locations[0]._id);
+      });
+      const branchOps = noBranch
+        .filter((d) => onlyBranch.has(String(d.centerId)))
+        .map((d) => ({
+          updateOne: {
+            filter: { _id: d._id },
+            update: { $set: { locationId: onlyBranch.get(String(d.centerId)) } },
+          },
+        }));
+      if (branchOps.length) await DoctorModel.bulkWrite(branchOps);
+    }
+
+    // 6) old bookings get the doctorId (from the slot of the treatment, or from the unique doctor name)
+    const allDoctors = await DoctorModel.find({}).select("centerId nameKey").lean();
+    const idByName = new Map(); // "centerId|nameKey" -> doctor id (null when the name is shared)
+    for (const d of allDoctors) {
+      const k = `${d.centerId}|${d.nameKey}`;
+      idByName.set(k, idByName.has(k) ? null : d._id);
+    }
+
+    const oldBookings = await BookingModel.find({
+      doctorId: { $exists: false },
+      doctor: { $type: "string", $ne: "" },
+    }).select("centerId treatmentId slotStart doctor").lean();
+
+    if (oldBookings.length) {
+      const treatmentIds = [
+        ...new Set(oldBookings.filter((b) => b.treatmentId).map((b) => String(b.treatmentId))),
+      ];
+      const trs = await TreatmentModel.find({ _id: { $in: treatmentIds } }).select("slots").lean();
+      const trMap = new Map(trs.map((tr) => [String(tr._id), tr]));
+
+      const bookingOps = [];
+      for (const b of oldBookings) {
+        const tr = b.treatmentId ? trMap.get(String(b.treatmentId)) : null;
+        const slot = tr?.slots?.find(
+          (s) => s.doctorId && s.start === b.slotStart && textKey(s.doctor) === textKey(b.doctor)
+        );
+        const id = slot?.doctorId || idByName.get(`${b.centerId}|${textKey(b.doctor)}`);
+        if (id) {
+          bookingOps.push({ updateOne: { filter: { _id: b._id }, update: { $set: { doctorId: id } } } });
+        }
+      }
+      if (bookingOps.length) await BookingModel.bulkWrite(bookingOps);
+    }
+
+    console.log("Doctor migration done");
   } catch (error) {
     console.log("Doctor migration error:", error.message);
   }
@@ -1627,7 +1837,7 @@ app.post("/treatments", async (req, res) => {
     if (imageErr) return res.send({ message: imageErr });
 
     // doctors are linked by id, so two doctors with the same name are never mixed up
-    const resolved = await resolveSlotDoctors(req.body.centerId, req.body.slots);
+    const resolved = await resolveSlotDoctors(req.body.centerId, req.body.slots, req.body.location);
     if (resolved.error) return res.send({ message: resolved.error });
 
     const err = checkSlots(resolved.slots, req.body.duration);
@@ -1700,8 +1910,13 @@ app.put("/treatments/:id", async (req, res) => {
       doctorId: s.doctorId,
     }));
 
-    if (req.body.slots !== undefined) {
-      const resolved = await resolveSlotDoctors(existing.centerId, req.body.slots);
+    // the doctors must work in the treatment's location (checked when the slots or the location change)
+    const finalLocation = req.body.location !== undefined ? req.body.location : existing.location;
+    const locationChanged = req.body.location !== undefined && req.body.location !== existing.location;
+
+    if (req.body.slots !== undefined || locationChanged) {
+      const input = req.body.slots !== undefined ? req.body.slots : slots;
+      const resolved = await resolveSlotDoctors(existing.centerId, input, finalLocation);
       if (resolved.error) return res.send({ message: resolved.error });
       slots = resolved.slots;
       req.body.slots = resolved.slots;
@@ -1765,6 +1980,7 @@ const BookingSchema = new mongoose.Schema(
     slotStart: String,
     slotEnd: String,
     doctor: String,
+    doctorId: { type: mongoose.Schema.Types.ObjectId, ref: "DOCTOR" },
     status: { type: String, default: "confirmed" },
     changeType: { type: String, default: "" },        // "edit" or "cancel"
     changeStatus: { type: String, default: "none" },  // none | pending | approved | rejected
@@ -1887,6 +2103,7 @@ app.post("/bookings", async (req, res) => {
       slotStart: slot.start,
       slotEnd: slot.end,
       doctor: slot.doctor,
+      doctorId: slot.doctorId,
     });
     await booking.save();
     res.send({ message: "success", booking });
@@ -1963,6 +2180,7 @@ app.put("/bookings/:id/customer-edit", async (req, res) => {
     booking.slotStart = slot.start;
     booking.slotEnd = slot.end;
     booking.doctor = slot.doctor;
+    booking.doctorId = slot.doctorId;
 
     try {
       await booking.save();
