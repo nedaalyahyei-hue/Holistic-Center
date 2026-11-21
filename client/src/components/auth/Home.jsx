@@ -2,11 +2,6 @@ import React, { useState, useEffect } from "react";
 import "./Home.css";
 import { Link } from "react-router-dom";
 
-// استيراد الصور من المسارات الصحيحة
-import AbnaFreish from "../../assets/AbnaFreish.png";
-import Muscat from "../../assets/Muscat.jpg";
-import AlYahyeai from "../../assets/AlYahyeai.jpeg";
-
 export default function Home() {
   const [lang, setLang] = useState("en");
   const [darkMode, setDarkMode] = useState(false);
@@ -15,15 +10,36 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState({
     centers: [],
-    treatments: []
+    treatments: [],
   });
 
+  // Real centers from the database
+  const [centers, setCenters] = useState([]);
+  const [loadingCenters, setLoadingCenters] = useState(true);
+  const [centersError, setCentersError] = useState("");
+
+  // Load the centers once when the page opens
+  useEffect(() => {
+    fetch("http://localhost:3002/customer/centers")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load centers");
+        return res.json();
+      })
+      .then((data) => {
+        if (data.message === "success") {
+          setCenters(data.centers || []);
+        } else {
+          setCentersError(data.message || "Failed to load centers");
+        }
+      })
+      .catch(() => setCentersError("Failed to load centers"))
+      .finally(() => setLoadingCenters(false));
+  }, []);
+
+  // Search (center name or treatment name) with a small delay
   useEffect(() => {
     if (!searchTerm.trim()) {
-      setSearchResults({
-        centers: [],
-        treatments: []
-      });
+      setSearchResults({ centers: [], treatments: [] });
       return;
     }
 
@@ -35,7 +51,7 @@ export default function Home() {
         const data = await res.json();
         setSearchResults({
           centers: data.centers || [],
-          treatments: data.treatments || []
+          treatments: data.treatments || [],
         });
       } catch (error) {
         console.error("Search error:", error);
@@ -45,30 +61,43 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const centers = [
-    { id: 1, name: "Abna Freish Center", nameAr: "مركز أبناء فريش", img: AbnaFreish, rating: 3 },
-    { id: 2, name: "Muscat Hijama Center", nameAr: "مركز مسقط للحجامة", img: Muscat, rating: 3 },
-    { id: 3, name: "AlYahyeai Hijama Center", nameAr: "مركز اليحيائي للحجامة", img: AlYahyeai, rating: 3 },
-    { id: 4, name: "BMC Center", nameAr: "مركز بي إم سي", img: "/BMC.png", rating: 3 },
-    { id: 5, name: "Al Manar Hijama Center", nameAr: "مركز المنار للحجامة", img: "/AlManar.png", rating: 3 },
-  ];
-
   const t = {
     en: {
-      home: "Home", centers: "Centers", dashboard: "Dashboard", login: "Login",
+      home: "Home",
+      centers: "Centers",
+      dashboard: "Dashboard",
+      login: "Login",
       heroTitle: "Find and book the best traditional wellness centers in Muscat",
-      searchPlaceholder: "Search centers", featured: "Featured Centers",
-      all: "All Centers", view: "View Center", contact: "contact"
+      searchPlaceholder: "Search centers",
+      featured: "Featured Centers",
+      all: "All Centers",
+      view: "View Center",
+      contact: "contact",
+      loading: "Loading centers...",
+      noCenters: "No centers available yet.",
+      noLocation: "Location not available",
+      noReviews: "No reviews yet",
     },
     ar: {
-      home: "الرئيسية", centers: "المراكز", dashboard: "لوحة التحكم", login: "دخول",
+      home: "الرئيسية",
+      centers: "المراكز",
+      dashboard: "لوحة التحكم",
+      login: "دخول",
       heroTitle: "ابحث واحجز أفضل مراكز الاستشفاء التقليدية في مسقط",
-      searchPlaceholder: "ابحث عن المراكز", featured: "المراكز المميزة",
-      all: "كل المراكز", view: "عرض المركز", contact: "اتصل بنا"
-    }
+      searchPlaceholder: "ابحث عن المراكز",
+      featured: "المراكز المميزة",
+      all: "كل المراكز",
+      view: "عرض المركز",
+      contact: "اتصل بنا",
+      loading: "جاري تحميل المراكز...",
+      noCenters: "لا توجد مراكز حالياً.",
+      noLocation: "الموقع غير متوفر",
+      noReviews: "لا توجد تقييمات بعد",
+    },
   };
 
   const current = t[lang];
+
   const handleJoinRequest = async (e) => {
     e.preventDefault();
 
@@ -103,7 +132,6 @@ export default function Home() {
       alert("Your request has been sent successfully!");
       form.reset();
       setShowJoinForm(false);
-
     } catch (error) {
       alert("Cannot connect to server");
     } finally {
@@ -111,33 +139,77 @@ export default function Home() {
     }
   };
 
+  // Filter the real centers by the search text
   const filteredCenters = !searchTerm.trim()
     ? centers
     : centers.filter((center) => {
-      const matchesName =
-        center.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        center.nameAr.includes(searchTerm);
+        const term = searchTerm.trim().toLowerCase();
+        const centerName = (center.centerName || "").toLowerCase();
 
-      const matchesDatabaseCenter = (searchResults.centers || []).some(
-        (c) => c.centerName?.toLowerCase() === center.name.toLowerCase()
-      );
-      const matchesTreatment = (searchResults.treatments || []).some(
-        (t) =>
-          t.centerId?.username?.toLowerCase() === center.name.toLowerCase()
-      );
+        const matchesName = centerName.includes(term);
 
-      return matchesName || matchesDatabaseCenter || matchesTreatment;
-    });
+        const matchesDatabaseCenter = (searchResults.centers || []).some(
+          (c) => String(c._id) === String(center._id)
+        );
+
+        const matchesTreatment = (searchResults.treatments || []).some(
+          (tr) => (tr.centerId?.username || "").toLowerCase() === centerName
+        );
+
+        return matchesName || matchesDatabaseCenter || matchesTreatment;
+      });
+
+  // Featured = the 3 centers with the most bookings (centers with no bookings are not featured)
+  const featuredCenters = [...filteredCenters]
+    .filter((c) => (c.bookingsCount || 0) > 0)
+    .sort(
+      (a, b) =>
+        (b.bookingsCount || 0) - (a.bookingsCount || 0) ||
+        (b.avgRating || 0) - (a.avgRating || 0)
+    )
+    .slice(0, 3);
+
+  // Stars from the average of the real reviews (0 to 5)
+  const renderStars = (avg) => {
+    const filled = Math.max(0, Math.min(5, Math.round(avg || 0)));
+    return "★".repeat(filled) + "☆".repeat(5 - filled);
+  };
+
+  // One card: the whole card opens the login page
+  const renderCenterCard = (center) => (
+    <Link to="/login" className="center-card-link" key={center._id}>
+      <div className="center-card-item">
+        <div className="center-card-img">
+          <img src={center.image || "/logo.png"} alt={center.centerName} />
+        </div>
+        <h4 className="center-card-name">{center.centerName}</h4>
+        <p className="center-card-location">
+          {center.location || current.noLocation}
+        </p>
+        <div className="center-card-stars">{renderStars(center.avgRating)}</div>
+        <p className="center-card-rating">
+          {center.reviewsCount > 0
+            ? `${center.avgRating} (${center.reviewsCount})`
+            : current.noReviews}
+        </p>
+        <span className="center-card-btn">{current.view}</span>
+      </div>
+    </Link>
+  );
+
   return (
-    <div className={`home-wrapper ${darkMode ? "dark" : ""} ${lang === "ar" ? "rtl" : ""}`}>
-
-      {/* Navbar - الهيدر العلوي */}
+    <div
+      className={`home-wrapper ${darkMode ? "dark" : ""} ${
+        lang === "ar" ? "rtl" : ""
+      }`}
+    >
+      {/* Navbar */}
       <nav className="navbar-custom">
         <div className="nav-logo-section">
           <span>Holistic Centers</span>
         </div>
-        <ul className="nav-menu">
 
+        <ul className="nav-menu">
           <li>
             <Link to="/home" className="active">
               {current.home}
@@ -145,24 +217,18 @@ export default function Home() {
           </li>
 
           <li>
-            <Link to="/customer/centers">
-              {current.centers}
-            </Link>
+            <Link to="/customer/centers">{current.centers}</Link>
           </li>
 
           <li>
-            <Link to="/customer/dashboard">
-              {current.dashboard}
-            </Link>
+            <Link to="/customer/dashboard">{current.dashboard}</Link>
           </li>
 
           <li>
-            <Link to="/login">
-              {current.login}
-            </Link>
+            <Link to="/login">{current.login}</Link>
           </li>
-
         </ul>
+
         <div className="nav-tools">
           <button
             type="button"
@@ -176,13 +242,16 @@ export default function Home() {
             {darkMode ? "☀️" : "🌙"}
           </span>
 
-          <span className="tool-icon" onClick={() => setLang(lang === "en" ? "ar" : "en")}>
+          <span
+            className="tool-icon"
+            onClick={() => setLang(lang === "en" ? "ar" : "en")}
+          >
             🌐
           </span>
         </div>
       </nav>
 
-      {/* Hero Section - الشريط الذي يحتوي على الخلفية والبحث */}
+      {/* Hero */}
       <header className="hero-container">
         <div className="hero-bg-overlay">
           <img src="/logo.png" alt="Logo" className="hero-logo-img" />
@@ -199,58 +268,54 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content - قسم البطاقات */}
+      {/* Centers */}
       <main className="cards-section">
         <div className="container-inner">
-          <h3 className="section-title">{current.featured}</h3>
-          <div className="cards-layout">
-            {filteredCenters.slice(0, 3).map((center) => (
-              <div className="center-card-item" key={center.id}>
-                <div className="center-card-img">
-                  <img src={center.img} alt={center.name} />
-                </div>
-                <h4 className="center-card-name">{lang === "en" ? center.name : center.nameAr}</h4>
-                <div className="center-card-stars">{"⭐".repeat(center.rating)}</div>
+          {loadingCenters && <p>{current.loading}</p>}
+          {centersError && <p>{centersError}</p>}
+          {!loadingCenters && !centersError && filteredCenters.length === 0 && (
+            <p>{current.noCenters}</p>
+          )}
 
-                {/* to click in view center locate in 1 posiation */}
-                {center.id === 1 ? (
-                  <Link to="/customer/center-details">
-                    <button className="center-card-btn">
-                      {current.view}
-                    </button>
-                  </Link>
-                ) : (
-                  <button className="center-card-btn">
-                    {current.view}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+          {filteredCenters.length > 0 && (
+            <>
+              {featuredCenters.length > 0 && (
+                <>
+                  <h3 className="section-title">{current.featured}</h3>
+                  <div className="cards-layout">
+                    {featuredCenters.map(renderCenterCard)}
+                  </div>
+                </>
+              )}
 
-          <h3 className="section-title" style={{ marginTop: '40px' }}>{current.all}</h3>
-          <div className="cards-layout">
-            {filteredCenters.map((center) => (
-              <div className="center-card-item" key={center.id}>
-                <div className="center-card-img">
-                  <img src={center.img} alt={center.name} />
-                </div>
-                <h4 className="center-card-name">{lang === "en" ? center.name : center.nameAr}</h4>
-                <div className="center-card-stars">{"⭐".repeat(center.rating)}</div>
-                <button className="center-card-btn">{current.view}</button>
+              <h3
+                className="section-title"
+                style={{ marginTop: featuredCenters.length > 0 ? "40px" : 0 }}
+              >
+                {current.all}
+              </h3>
+              <div className="cards-layout">
+                {filteredCenters.map(renderCenterCard)}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </main>
 
+      {/* Footer */}
       <footer className="footer-simple-box" id="contact">
         <p>{current.contact} +96899558654</p>
         <p>customerservice@holisticcenter.com</p>
         <div className="social-icons-list">
-          <span>📞</span><span>🔗</span><span>📸</span><span>📘</span><span>▶️</span>
+          <span>📞</span>
+          <span>🔗</span>
+          <span>📸</span>
+          <span>📘</span>
+          <span>▶️</span>
         </div>
       </footer>
+
+      {/* Request to Join modal */}
       {showJoinForm && (
         <div className="join-modal-overlay">
           <div className="join-modal">

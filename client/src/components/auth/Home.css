@@ -31,7 +31,7 @@
   align-items: center;
   padding: 12px 5%;
   background: var(--nav-bg);
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .nav-menu {
@@ -43,13 +43,25 @@
 .nav-menu li { cursor: pointer; font-size: 15px; font-weight: 500; }
 .nav-menu li.active { text-decoration: underline; color: #4a5d4e; }
 
+.nav-menu a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-menu a.active {
+  text-decoration: underline;
+  color: #4a5d4e;
+}
+
+.home-wrapper.dark .nav-menu a.active { color: #b7c9b2; }
+
 .tool-icon { cursor: pointer; margin: 0 8px; font-size: 1.2rem; }
 
-/* Hero Section - دمج ستايل كود اللوجن هنا */
+/* Hero Section */
 .hero-container {
   width: 100%;
   height: 350px;
-  background-image: url("/bg.png"); /* الخلفية المطلوبة */
+  background-image: url("/bg.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -58,7 +70,7 @@
 .hero-bg-overlay {
   width: 100%;
   height: 100%;
-  background: rgba(233, 238, 220, 0.60); /* الـ Overlay المطلوب */
+  background: rgba(233, 238, 220, 0.60);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -68,7 +80,7 @@
 }
 
 .dark .hero-bg-overlay {
-  background: rgba(0, 0, 0, 0.50); /* Overlay أغمق للوضع الليلي */
+  background: rgba(0, 0, 0, 0.50);
 }
 
 .hero-logo-img {
@@ -99,7 +111,7 @@
   border: none;
   padding: 0 25px;
   font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   outline: none;
 }
 
@@ -127,16 +139,56 @@
   gap: 20px;
 }
 
+/* The whole card is a link to the login page */
+.center-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
 .center-card-item {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
   background: var(--card-bg);
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   padding: 15px;
   text-align: center;
-  transition: transform 0.3s;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.center-card-item:hover { transform: translateY(-5px); }
+/* Light shine that sweeps across the card on hover */
+.center-card-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+
+.center-card-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 28px rgba(79, 133, 119, 0.35);
+}
+
+.center-card-item:hover::after {
+  animation: card-shine 0.8s ease;
+}
+
+@keyframes card-shine {
+  to { left: 140%; }
+}
 
 .center-card-img {
   height: 100px;
@@ -154,23 +206,42 @@
 
 .center-card-name { font-size: 15px; margin-bottom: 5px; }
 
-.center-card-stars { color: #ffc107; margin-bottom: 12px; }
+.center-card-location {
+  font-size: 13px;
+  color: #777;
+  margin: 4px 0 8px;
+}
+
+.home-wrapper.dark .center-card-location { color: #bbb; }
+
+.center-card-stars { color: #ffc107; margin-bottom: 4px; letter-spacing: 2px; }
+
+.center-card-rating {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 12px;
+}
+
+.home-wrapper.dark .center-card-rating { color: #bbb; }
 
 .center-card-btn {
+  display: inline-block;
   background: #d4e4d9;
+  color: #2f3529;
   border: 1px solid #999;
   padding: 6px 15px;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.center-card-btn:hover { background: #b7c9b2; }
+.center-card-item:hover .center-card-btn { background: #b7c9b2; }
 
 /* Footer */
 .footer-simple-box {
   padding: 30px 5%;
-  border-top: 1px solid rgba(0,0,0,0.05);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   font-size: 14px;
 }
 
@@ -290,4 +361,14 @@
 
 .join-send-btn:hover {
   background: #3d6d60;
+}
+
+/* Less motion for people who ask for it */
+@media (prefers-reduced-motion: reduce) {
+  .center-card-item,
+  .center-card-item:hover {
+    transition: none;
+    transform: none;
+  }
+  .center-card-item:hover::after { animation: none; }
 }

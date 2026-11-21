@@ -2941,12 +2941,20 @@ app.put("/customer/profile/:id", async (req, res) => {
 // ================= Customer: centers and treatments =================
 
 // A CENTER record (managed by the admin) and the center's login account (USER)
-// are linked by email, or by name for older records without an email.
+// are linked by the saved centerId first, then by email, then by name (older records).
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 async function findCenterUser(center) {
   const fields = "username email phone image description locations isBlocked";
 
+  // 1) the account that is linked directly to this CENTER record
+  const byLink = await UserModel.findOne({
+    role: "center",
+    centerId: center._id,
+  }).select(fields);
+  if (byLink) return byLink;
+
+  // 2) by email
   if (center.email && center.email.trim()) {
     const byEmail = await UserModel.findOne({
       role: "center",
@@ -2955,6 +2963,7 @@ async function findCenterUser(center) {
     if (byEmail) return byEmail;
   }
 
+  // 3) by name
   if (center.centerName && center.centerName.trim()) {
     return UserModel.findOne({
       role: "center",
@@ -2987,13 +2996,44 @@ function mergeCenter(center, user) {
   };
 }
 
-// Get registered centers for customers
+// Get registered centers for customers (with rating + bookings count)
 app.get("/customer/centers", async (req, res) => {
   try {
     const centers = await CenterModel.find({});
 
+    // bookings per center account (cancelled bookings are not counted)
+    const bookingStats = await BookingModel.aggregate([
+      { $match: { status: { $ne: "cancelled" } } },
+      { $group: { _id: "$centerId", total: { $sum: 1 } } },
+    ]);
+
+    // average of the reviews per center account
+    const ratingStats = await FeedbackModel.aggregate([
+      {
+        $group: {
+          _id: "$centerId",
+          avg: { $avg: { $toDouble: "$rate" } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const bookingMap = new Map(bookingStats.map((b) => [String(b._id), b.total]));
+    const ratingMap = new Map(ratingStats.map((r) => [String(r._id), r]));
+
     const result = await Promise.all(
-      centers.map(async (c) => mergeCenter(c, await findCenterUser(c)))
+      centers.map(async (c) => {
+        const user = await findCenterUser(c);
+        const key = user ? String(user._id) : "";
+        const rating = ratingMap.get(key);
+
+        return {
+          ...mergeCenter(c, user),
+          bookingsCount: bookingMap.get(key) || 0,
+          avgRating: rating ? Math.round(rating.avg * 10) / 10 : 0,
+          reviewsCount: rating ? rating.count : 0,
+        };
+      })
     );
 
     res.json({ message: "success", centers: result });
